@@ -1,0 +1,2 @@
+# Small test-only environment; science dependencies are installed separately.
+pytest==8.4.2
