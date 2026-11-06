@@ -1,4 +1,6 @@
 from pathlib import Path
+import struct
+import zlib
 
 import numpy as np
 from PIL import Image
@@ -35,6 +37,33 @@ def test_rejects_noncontract_images(tmp_path, mode, size, format):
     paths = quartet(tmp_path)
     Image.new(mode, size).save(paths[1], format=format)
     with pytest.raises(ValueError):
+        load_png_quartet(paths)
+
+
+@pytest.mark.parametrize("bit_depth", [2, 4])
+def test_rejects_valid_packed_grayscale_png(tmp_path, bit_depth):
+    paths = quartet(tmp_path)
+
+    def chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data)))
+
+    # Packed samples cycle through the full encoded range; each row uses filter0.
+    per_byte = 8 // bit_depth
+    mask = (1 << bit_depth) - 1
+    samples = np.arange(128, dtype=np.uint8) & mask
+    packed = bytes(sum(int(samples[start + offset]) << (8 - bit_depth * (offset + 1))
+                       for offset in range(per_byte))
+                   for start in range(0, 128, per_byte))
+    header = struct.pack(">IIBBBBB", 128, 128, bit_depth, 0, 0, 0, 0)
+    paths[1].write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+                         + chunk(b"IDAT", zlib.compress((b"\x00" + packed) * 128))
+                         + chunk(b"IEND", b""))
+    with Image.open(paths[1]) as image:
+        assert image.format == "PNG" and image.mode == "L" and image.size == (128, 128)
+        expected = np.tile(samples.astype(np.uint16) * (255 // mask), (128, 1)).astype(np.uint8)
+        np.testing.assert_array_equal(np.array(image), expected)
+    with pytest.raises(ValueError, match="8-bit grayscale"):
         load_png_quartet(paths)
 
 
