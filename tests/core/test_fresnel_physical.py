@@ -653,3 +653,19 @@ def test_loss_operator_study(capsys):
             start, a = _optimise_phase(t, _lsq_gain_nmse, 0)
             print(_study_row("LSQ solution (start)", a, t))
             print(_study_row("-> +300 steps of contract loss", _optimise_phase(t, _contract_loss, 0, init=start)[1], t))
+
+
+def test_lsq_zero_overlap_stationarity_vs_cosine():
+    # Proven: grad(1 - cos^2) = -2 cos grad(cos) vanishes at cos = 0; grad(1 - cos) = -grad(cos) does not.
+    # Zero overlap is built explicitly: amplitude only where the target is zero.
+    t = torch.zeros(N, N, dtype=torch.float64)
+    t[:64] = 1.0
+    a = torch.zeros(N, N, dtype=torch.float64)
+    a[64:] = torch.rand(64, N, generator=torch.Generator().manual_seed(0), dtype=torch.float64) + 0.1
+    a.requires_grad_(True)
+    cos = (a * t).sum() / (a.norm() * t.norm())
+    (g_lsq,) = torch.autograd.grad(1 - cos**2, a, retain_graph=True)
+    (g_cos,) = torch.autograd.grad(1 - cos, a)
+    assert float(cos) == 0.0
+    assert float(g_lsq.abs().max()) == 0.0
+    assert float(g_cos.abs().max()) > 0  # pushes amplitude towards the target support
