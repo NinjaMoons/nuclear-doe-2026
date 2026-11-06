@@ -79,3 +79,7 @@ class PairMetricsV1:
     pearson: float | None
     ssim: float
     pearson_defined: bool
+
+
+RECONSTRUCTION_POLICY_V1 = "per_plane_max_round_half_up_u8_v1"
+SSIM_POLICY_V1 = "global_population_L1_K1_0.01_K2_0.03_v1"
