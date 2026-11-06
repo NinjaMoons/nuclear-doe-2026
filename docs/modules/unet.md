@@ -1,9 +1,9 @@
-# Нейросеть 4 изображения → один DOE (#5A skeleton, контракт v1.1-amplitude)
+# Нейросеть 4 изображения → один DOE (#5, контракт v1.1-amplitude)
 
 Модули: `doe_models/unet_multiplane.py`, `doe_models/train_multiplane.py`. Тесты: `tests/models/test_unet_multiplane.py`.
-Контракт: [INTERFACES_V1](../INTERFACES_V1.md) (`301ea47`), раздел «Adam и нейросеть».
+Контракт: [INTERFACES_V1](../INTERFACES_V1.md) (`301ea47`, уточнение `c8f9a43`), раздел «Adam и нейросеть».
 
-**Статус: каркас (#5A).** Сеть ещё НЕ обучена на настоящем Fresnel и данных; обучение (#5B) — только после gates: #3 общий forward/loss, independent physics gate #18+#16, #4A amplitude IO, #4B пилот данных и первый baseline. Adam не является нейросетью.
+**Статус:** есть один фактически обученный checkpoint — первый ограниченный run `train-49b9604` (раздел «Обученная модель» ниже). Это не независимая конкурсная приёмка качества и не заявление о сходимости. Adam (#3) нейросетью не является.
 
 ## Архитектура `FourInputUNet`
 - Вход targets `[B,4,1,H,W]` (PNG/255 = амплитуды в [0,1]); четыре плоскости в порядке z → четыре входных канала (`2·T−1`). Ось batch с плоскостями не смешивается.
@@ -45,7 +45,14 @@ python -m doe_models.train_multiplane --manifest <manifest.json> --out-dir <NEW 
 - `save_checkpoint(..., code_commit=<git SHA>)` хранит commit кода; `checkpoint_metadata(payload)` даёт JSON-provenance (checkpoint SHA256, commit, hparams, contract_version, seed/steps/lr/ID/best val) — готов для `metadata` в `export_run` #7.
 - `infer_phase(model, targets)` — фаза без градиентов в eval mode (режим вызывающего восстанавливается); для B=1 даёт `[1,1,128,128]`, который принимает `export_run(target_paths, phase_rad, output_dir, metadata=...)`.
 - Тест: **новый Python-процесс** грузит checkpoint через `weights_only=True` и воспроизводит фазу бит-в-бит.
-- Предложение координатору (#7, его файлы): подкоманда CLI `unet --checkpoint` = `load_checkpoint` → `infer_phase` → `export_run(metadata=checkpoint_metadata(payload))`. Сам CLI/export не меняю.
+
+## Inference обученного checkpoint: штатный neural CLI
+В frozen source есть подкоманда `neural` CLI #7 (`doe_experiments/cli.py`; файл координатора, здесь не меняется). Сверено с `python -m doe_experiments.cli neural --help` на `49b96041`:
+```
+python -m doe_experiments.cli neural --targets <z1.png> <z2.png> <z3.png> <z4.png> \
+  --output-dir <NEW dir> --checkpoint <best.pt> [--dtype {float32,float64}] [--synthetic-test]
+```
+Путь внутри: `load_checkpoint` (строгая загрузка на CPU, `weights_only`) → `--dtype` по умолчанию = dtype checkpoint; другое значение — ошибка, веса не приводятся → `load_quartet` 4 PNG (#4A) → `infer_phase` → `checkpoint_metadata(payload)` с `training_verified: false` и временем загрузки/inference → `export_run`: DOE.png → reload → 4 Fresnel → 4 PNG → reload → Pearson/SSIM, `manifest.json` с `reproduce_argv`. Существующий `--output-dir` не перезаписывается. Exit 0 при успехе, 2 при ошибке pipeline (сообщение `v1 pipeline failed: …` в stderr). `--synthetic-test` помечает synthetic/test входы, как в `adam`. CLI проверяет загрузку и экспорт, но не то, что checkpoint действительно обучен: provenance — в metadata checkpoint и в разделе ниже.
 
 ## Проверка
 Training smoke использует **локальный differentiable stub** `fft2(U·exp(i·S_z))` — не модель Френеля, не физическое доказательство и не качество сети.
@@ -71,7 +78,38 @@ Smoke (base=4/depth=2, 4 train + 2 val синтетических квартет
 
 **Найдено схлопывание при контрактной training-loss** (synthetic box-квартеты, 16 train / 4 val): за 60 шагов val loss 0.330 → 0.0247 при тривиальном уровне `mean(T²)` = 0.0200, средний Pearson на val 0.012, доля пикселей `A/max > 0.5` — 0.09% (у target 3.2%). Сеть собирает свет в несколько точек: `A/max ≈ 0` почти везде, loss → `mean(T²)`. Контролируемая ablation (100 шагов, меняется только training loss): контракт — Pearson 0.005; `1 − Pearson` — 0.287; LSQ-gain NMSE — 0.237. Политика не изменена; решение запрошено у координатора в #5. **Падение контрактной loss само по себе не доказывает обучение** — проверять Pearson и отношение к `mean(T²)`.
 
-## Ограничения / следующее (#5B)
-- Нет обучения на настоящем Fresnel и пилотных данных 64A+64B; нет held-out Pearson/SSIM через экспорт DOE #7. Запуск — после перечисленных gates, коротким CPU smoke; long/GPU — только по согласованию.
-- Mean-amplitude нормировка (R-002-E14) — кандидат для controlled ablation после согласования, не текущая политика.
-- Время шага на этой машине нестабильно; для benchmark нужна отдельная фиксированная среда.
+## Обученная модель `train-49b9604` (первый ограниченный run)
+**Provenance**
+
+| что | значение |
+|---|---|
+| Код (TRAINING_SHA) | `49b96041b3b4bf1b2eaa57567939bcd929defd2e` (PR #25; driver #19 `d3596b9` без изменений), `git_dirty=false` |
+| Данные | asset `corpus-4b-win-49b9604.tar.gz` (private draft Release `data-4b-v1`), 41 677 841 bytes, SHA256 `6c6f136b60c0edd501f80ae09280289b6bfa8873a97bc1ac1864833302945701`; `manifest_expanded.json` SHA256 `76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78`; train 512 / val 16 / test 16 (A64, B64, A208, B208; A208/B208 только train); пиксельный digest совпадает с Linux-сборкой (#4) |
+| Checkpoint (выбран) | `checkpoints/best.pt`, step 1000, SHA256 `ba699b7464ca448dd367399a5509914468c23c0d1990bb3771692f4ad4fb16a2` (asset `train-49b9604-best.pt`); те же веса — `step_001000.pt` `ff8de3708beeb398ae3985dfc2da99fc9f4899dbfed1347c41676befe856d73c` (другие байты из-за metadata) |
+| Логи | `train_log.json` `cb2d7f41f1ed8d864e0a028197dc0d89b13f00e31682926e6ce9488d8c2677ab`; `run_config.json` `25f75e5aa937d956b5f34332e12eb175d04b5f9deba191b0dc557959ab101561`; `environment.json` `33be1eee96bf9e0477c0551ee4805575669c1faf2b1775e7bc9f435901408a72`; VAL `eval_summary.json` `c6e70d7199f86f97b5b518692b740f48e3b860717bca8aea52ec0bfcfd58dac4` (оригинальные байты с CRLF; asset `train-49b9604-json5.tar.gz`) |
+| Среда | RTX 4070 Ti 12 GB, Windows 11, Python 3.11.9, torch 2.9.0+cu128, CUDA 12.8, cuDNN 91002; peak memory 679 MB |
+
+**Параметры:** FourInputUNet base=16/depth=3 (451 329 параметров), objective `lsq_gain_nmse_plus_0.1_contract_mse_v1`, Adam lr 1e-3, batch 4, seed 0, fp32, без AMP. **1000 непрерывных updates** (≈ 7.8 эпохи по train 512), 0.015 с/update, 17.5 с обучения. VAL на шагах 0 / 100 / … / 1000; checkpoints только веса, `resumable=false`, **resume не поддерживается**. Перед run — smoke20 на той же CUDA (0.014 с/шаг).
+
+**Выбор checkpoint — только по VAL**, правило зафиксировано до результатов (#5, comment 6697684744): исключить collapse и неопределённый Pearson; Pmax по exported VAL mean Pearson; в пределах 0.005 от Pmax — больший worst-plane SSIM, затем более ранний step. Pmax = 0.41805 (step 1000); в полосе — step 900 (0.41703); worst-plane SSIM 0.30493 > 0.30356 → step 1000. Зафиксировано координатором до TEST (comment 6698121273). `best_by_objective` совпал (step 1000), но выбор делался отдельно.
+
+**VAL** (16 квартетов, официальный путь DOE.png → reload → 4 Fresnel → 4 PNG → reload; отчёты #5 comments 6698051196, 6698269064):
+
+| | Pearson z1 / z2 / z3 / z4 | mean | SSIM mean | worst plane P / S |
+|---|---|---:|---:|---:|
+| все 16 | 0.442 / 0.463 / 0.399 / 0.368 | 0.418 | 0.322 | 0.368 / 0.305 |
+| A (8, DOE-реализуемые) | 0.521 / 0.563 / 0.562 / 0.557 | 0.551 | 0.473 | 0.521 |
+| B (8, процедурные) | 0.363 / 0.364 / 0.237 / 0.179 | 0.286 | 0.170 | 0.179 |
+
+Collapse не обнаружен (lit 14% против target 10.8%, доля мощности пикового пикселя 0.07%); worst pair Pearson ≈ 0.007 (`B64:016` z4). Метрики почти монотонно росли по checkpoint (mean Pearson 0.351 на step 100 → 0.418 на step 1000); best = последний шаг, обучение не сошлось.
+
+**TEST — отчёт оператора, не независимая приёмка; для подбора модели не используется** (`test-49b9604-best1000`, один запуск после фиксации выбора, exit 0; #5 comment 6698225416): 16 квартетов, mean Pearson 0.4705, mean SSIM 0.3917, Pearson z1..z4 0.397 / 0.531 / 0.528 / 0.426, worst plane 0.397 / 0.333, worst pair −0.026, collapse нет; `eval_summary.json` `e3ad2ce8578de536df229c8369c7d3edd143380c7ef32c163a2f03dd3339640b`.
+
+**Воспроизведение inference:** скачать `train-49b9604-best.pt` и корпус из `data-4b-v1`, сверить SHA256, затем `python -m doe_experiments.cli neural --targets <4 PNG квартета> --output-dir <NEW dir> --checkpoint <best.pt>` на дереве `49b96041`. Координатор перепрогнал одну VAL-квартету `A64:006` на CPU (#7, comment 6698241304): max ΔPearson ≈ 8.6e-5, ΔSSIM ≈ 1.1e-4 против GPU-экспорта, DOE отличается в 32/16384 пикселях не более чем на 1 код. Это одно измерение, не универсальный допуск.
+
+## Известные ограничения
+- **Exit code обучения UNKNOWN**: PowerShell `Start-Process` не вернул код launcher'а. Завершение подтверждено полным набором артефактов (1000 шагов, 12 checkpoint, VAL eval_summary), но код выхода 0 не заявляется. Exit TEST = 0.
+- **B заметно хуже A** (VAL Pearson 0.29 против 0.55) и деградирует к дальним плоскостям (z4 0.18); все худшие пары — B. Для произвольных конкурсных изображений релевантнее B. Гипотеза: произвольные B-квартеты хуже реализуемы одной фазой, а A достижимы по построению.
+- Малые выборки (VAL и TEST по 16 квартетов, 8 A + 8 B); различия ±0.01 между соседними checkpoint — в пределах шума. Один seed, один run; training-бюджет исчерпан.
+- Корпус синтетический (A — фазы через настоящий Fresnel, B — процедурные изображения); реальные 4 PNG кейса в этой оценке не участвуют.
+- Mean-amplitude нормировка (R-002-E14) и другие objective — не исследованы на этом корпусе; текущая политика не меняется без решения координатора.
