@@ -67,7 +67,7 @@ def test_submission_roundtrip(tmp_path):
         # Same production forward verifies dataflow/PNG, not correctness of physics.
         field = propagate_fresnel(torch.exp(1j * phase), config.plane(index)).field
         raw = field.abs().detach().cpu().numpy().astype(np.float64)
-        expected = np.floor(255 * raw / raw.max() + 0.5).astype(np.uint8)[0, 0]
+        expected = np.floor(255 * (raw / raw.max()) + 0.5).astype(np.uint8)[0, 0]
         np.testing.assert_array_equal(restored, expected)
         assert pair["doe_sha256"] == sha256(output / "DOE.png")
         with Image.open(inputs[index]) as image:

@@ -93,7 +93,9 @@ def _display(raw: torch.Tensor, conversion: Callable) -> tuple[np.ndarray, list[
     maxima = values.max(axis=(-2, -1), keepdims=True)
     if not np.isfinite(values).all() or (values < 0).any() or (maxima <= 1e-12).any():
         raise ValueError("invalid or zero amplitude for display policy")
-    expected = np.floor(255 * values / maxima + 0.5).astype(np.uint8)
+    # Contract fixes divide-first float64 order at half-boundaries and avoids
+    # overflowing 255*A for large finite amplitudes.
+    expected = np.floor(255 * (values / maxima) + 0.5).astype(np.uint8)
     actual = conversion(raw)
     if not isinstance(actual, np.ndarray) or actual.dtype != np.uint8 or actual.shape != values.shape:
         raise ValueError("amplitude_to_u8 must return uint8 with matching 5D shape")
