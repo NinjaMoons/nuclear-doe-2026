@@ -1,10 +1,18 @@
-# Контракт v1: один DOE для четырёх Fresnel-плоскостей
+# Контракт v1.1-amplitude: один DOE для четырёх Fresnel-плоскостей
 
-**PROPOSED — требуется согласование Павла и владельцев #14/#3/#4/#5 до реализации зависимых модулей.** Основание: [официальные требования](CASE_REQUIREMENTS.md). v0 (doe_core/contracts.py и ASM) сохраняется; его API/тесты не изменяются. Общие v1-типы: doe_core/contracts_v1.py, владелец только координатор.
+**V1.1 PROPOSED — старые ACK по intensity недействительны; требуется ACK владельцев #14/#3/#4/#5 на новый SHA и согласование merge Павлом.** Независимые черновики в своих областях разрешены сейчас; физическая приёмка, генерация корпуса A и обучение требуют настоящих проверенных зависимостей. Основание: [официальные требования](CASE_REQUIREMENTS.md). v0 (doe_core/contracts.py и ASM) сохраняется; его API/тесты не изменяются. Общие v1-типы: doe_core/contracts_v1.py, владелец только координатор.
+
+## Наблюдаемая величина v1.1 — обязательное исправление
+
+Текстовое [ТЗ, раздел2](spec/AI-photonics-text.txt) явно требует сохранять модули комплексного поля. Общая операция `doe_core.observables.field_observables(U)` возвращает amplitude=abs(U), intensity=amplitude.square(). Fresnel по-прежнему возвращает complexU. PRIMARY путь labels/loss/normalization/PNG/metrics/benchmark — amplitude. Intensity сохраняется только для энергетики и диагностики, не как замена label.
+
+Входной PNG/255 уже целевая amplitude: НЕ брать из него sqrt, не возводить в квадрат. MultiPlaneResult обязательно содержит `amplitudes` и `intensities` с одинаковой5Dформой и явной metadata observation=amplitude. Старые intensity outputs/corpora имеют другой contract/corpus_id и не смешиваются с новыми.
+
+Нормировка и PNG-конверсия: max по rawamplitude, float64 для uint8 conversion; floor(255*A/max(A)+0.5). Пример A=[1,2] ->[128,255], тогда как I=[1,4]->[64,255]; это численное изменение, не переименование. Loss=mean((A/max(A)-T)^2), включает gradient max. Intensity-сумма с площадью пикселя остаётся правильным энергетическим тестом.
 
 ## Формы и порядок
 - Targets: float32/64 [B,4,1,128,128], яркость uint8/255, порядок distances_m=(0.0241,0.0253,0.0265,0.0277). B — независимые КВАРТЕТЫ, не плоскости.
-- DOE phase: один real tensor [B,1,128,128], radians [-pi,+pi]. Интенсивности: [B,4,1,128,128]. Четыре независимых phase maps запрещены.
+- DOE phase: один real tensor [B,1,128,128], radians [-pi,+pi]. PRIMARY amplitudes: [B,4,1,128,128]. Четыре независимых phase maps запрещены.
 - CaseConfigV1 фиксирует lambda532e-9m, input pitch(dy,dx)=(10e-6,10e-6)m,128x128. FresnelGeometry — generic positive-z для независимых small-grid тестов. Complex64/128 соответствует float32/64; device/dtype/autograd сохраняются, NaN/Inf/невалидные формы отвергаются ValueError. Требования к тензорам проверяет владелец реализации, не dataclass.
 - Явное допущение команды: равномерная illumination A=1, U=exp(i*phase); raw forward ничего не нормирует. Нормировка loss/PNG описана отдельно.
 
@@ -47,7 +55,7 @@ class FourInputUNet:
 ```
 Один trainable phase tensor; общий forward по4z и равные plane weights1/4. Модель может внутри убрать singleton channel, объединяя plane axis в4канала, но не смешивать B и planes. v0 synthesize_adam/PhaseUNet не менять для скрытой смены API; новые файлы adam_multiplane.py, unet_multiplane.py, train_multiplane.py.
 
-**Зафиксированная v1.0 loss/display policy (инженерное соглашение):** per-plane positive max normalization I/max(I), явно вне физического propagator; target=PNG/255 без min/max-растяжки. Нулевая predicted интенсивность — явная ошибка. Обучающий loss = mean((I_display-T)^2) по B,4,1,H,W; MSE только вспомогательный loss, отчёт обязательно Pearson/SSIM. Best state по общей loss, seed-local, initial loss включён, итоговый raw forward пересчитан для возвращаемой phase. MultiPlaneResult хранит raw continuous intensities; metadata фиксирует policy и config.
+**Зафиксированная v1.1 amplitude loss/display policy (инженерное соглашение):** per-plane positive max normalization A/max(A), явно вне физического propagator; target=PNG/255 без min/max-растяжки. Нулевая predicted амплитуда — явная ошибка. Обучающий loss = mean((A_display-T)^2) по B,4,1,H,W; MSE только вспомогательный loss, отчёт обязательно Pearson/SSIM. Best state по общей loss, seed-local, initial loss включён, итоговый raw forward пересчитан для возвращаемой phase. MultiPlaneResult хранит raw continuous amplitudes и отдельные diagnostic intensities=A.square(); metadata фиксирует policy и config.
 
 Physics-informed обучение без phase labels допустимо: четыре forward -> loss -> gradient по весам. Минимальная приёмка нейросети: реально изменившиеся weights, сохранённый/загружаемый checkpoint, training log, отдельные train/val/test квартеты и оценка. Adam не объявляется обученной моделью. Split по исходным объектам/происхождению ДО аугментаций; official final quartet не используется в train. После baseline возможен quantization-aware fine-tune; STE не является физическим доказательством PNG-результата.
 
@@ -55,18 +63,18 @@ Physics-informed обучение без phase labels допустимо: чет
 ```python
 def load_png_quartet(paths: Sequence[Path]) -> Tensor: ...  # [1,4,1,128,128], CPU float32
 def evaluate_multiplane(prediction: Tensor, target: Tensor) -> list[list[PairMetricsV1]]: ...
-def intensity_to_u8(intensities: Tensor) -> ndarray: ...  # same shape, proposed explicit max policy
+def amplitude_to_u8(amplitudes: Tensor) -> ndarray: ...  # same shape, proposed explicit max policy
 def save_reconstructions(images_u8, output_dir: Path) -> list[Path]: ...
 ```
-evaluate_multiplane получает оба float32/64 tensors [B,4,1,128,128] в [0,1], ничего не нормирует и не растягивает; raw intensities вызывающий код сначала явно переводит через согласованную display policy. Результат индексируется [batch][plane_index], всегда4пары наэлементbatch.
+evaluate_multiplane получает оба float32/64 tensors [B,4,1,128,128] в [0,1], ничего не нормирует и не растягивает; raw amplitudes вызывающий код сначала явно переводит через согласованную display policy. Результат индексируется [batch][plane_index], всегда4пары наэлементbatch.
 
 Принимаются ровно4 PNG mode L uint8,128x128; RGB/16bit/неверный размер отклонять, без silent resize/conversion. Порядок paths соответствует z, без lexical guessing. Сохранять original hashes и synthetic/test flags. Synthetic quartet generator вdata.py; реальные картинки не выдумывать.
 
 **Явные параметры метрик, требующие ACK владельца:** Pearson по всем128x128 значениям пары; нулевая дисперсия любого изображения -> pearson=None, pearson_defined=False, JSON null. SSIM: формула слайда3 на полном изображении, population variance/covariance, data_range=1, C1=0.01^2,C2=0.03^2; одинаковые константы дают SSIM1. Скользящее окно презентацией не определено: windowed skimage SSIM может быть дополнительным полем, не подменять им явно названный global policy. Любую альтернативу согласовать ДО сравнения результатов.
 
-Проверяемое правило primary evaluation `per_plane_max_round_half_up_u8_v1`: для каждой плоскости m=max(raw I)>1e-12, q=floor(255*I/m+0.5), uint8. В manifest записывать m и exposure=1/m каждой плоскости; raw I сохранять без этой нормировки. Ни target, ни его метрики не участвуют в выборе exposure. Все методы используют одинаковое правило; тесты обязаны проверять формулу, инвариантность PNG к положительному масштабированию I и воспроизведение метрик из сохранённых файлов.
+Проверяемое правило primary evaluation `per_plane_max_amplitude_round_half_up_u8_v1_1`: для каждой плоскости m=max(raw A)>1e-12, q=floor(255*A/m+0.5), uint8. В manifest записывать m и exposure=1/m каждой плоскости; raw A сохранять без этой нормировки. Ни target, ни его метрики не участвуют в выборе exposure. Все методы используют одинаковое правило; тесты обязаны проверять формулу, инвариантность PNG к положительному масштабированию A и воспроизведение метрик из сохранённых файлов.
 
-Primary metrics: пары original target PNG и повторно прочитанного restored PNG, оба/255; ровно4 результата наsample без сокрытия плохой плоскости средним. Дополнительно: metrics continuous phase и decoded phase float-output при той же display policy; quantization delta. Raw intensity сохранять отдельно; target-fitted gain, gamma, histogram/contrast stretching запрещены без явного отдельного согласования.
+Primary metrics (только amplitude domain): пары original target PNG и повторно прочитанного restored PNG, оба/255; ровно4 результата наsample без сокрытия плохой плоскости средним. Дополнительно: metrics continuous phase и decoded phase float-output при той же display policy; quantization delta. Raw amplitude сохранять отдельно; target-fitted gain, gamma, histogram/contrast stretching запрещены без явного отдельного согласования.
 
 ## Phase codec, export/CLI/benchmark (#6/#7/#8, координатор)
 Phase codec принадлежит только doe_experiments/phase_codec.py:
@@ -76,9 +84,16 @@ phi_q = -pi + 2*pi*q/255
 ```
 Никакого /256 или min/max текущей phase-картинки. Decode255 сохраняет+pi, не wrap в-pi; физически края эквивалентны. Проверить endpoints, промежуточные коды, угловую ошибку<=pi/255 и PNG roundtrip.
 
-Единственный обязательный путь: load4PNG -> Adam/model -> oneDOE -> save DOE.png -> RELOAD DOE.png -> decode -> SAME FIELD at4z -> raw intensities -> intensity_to_u8 -> save4PNG -> RELOAD4PNG -> Pearson/SSIM -> manifest. Float phase сама по себе не служит источником итоговых PNG. Для B>1 отдельный каталог наквартет; в каждом ровноодин DOE.png и4recon PNG.
+Единственный обязательный путь: load4PNG -> Adam/model -> oneDOE -> save DOE.png -> RELOAD DOE.png -> decode -> SAME FIELD at4z -> raw amplitudes -> amplitude_to_u8 -> save4PNG -> RELOAD4PNG -> Pearson/SSIM -> manifest. Float phase сама по себе не служит источником итоговых PNG. Для B>1 отдельный каталог наквартет; в каждом ровноодин DOE.png и4recon PNG.
 
 Artifacts: исходные4PNG, DOE.png, reconstructed_01..04.png, metrics.json(perplane+continuous/quantized flags), raw arrays безpickle, manifest с config/SI/output pitches, paths+SHA256, source/data flags, seed, gitSHA, dependencies, model/checkpoint hash/training provenance, timing_scope и командой воспроизведения. Данные/веса вне обычных gitcommits, согласованное хранилище/Release; ссылка+hashвmanifest. Benchmark сравнивает одинquartet/метод/геометрию/precision/device и качество экспортированногоDOE; training/load/warmup/synthesis/IO раздельно.
+
+## Два обязательных gate научной приёмки
+
+1. **Независимая физика** — `tests/integration/test_fresnel_reference.py`, координатор. Production single-FFT Fresnel сравнивается с прямым интегральным ядром exp(i*pi*((x2-x1)^2+(y2-y1)^2)/(lambda*z)) в матричной сумме без FFT и без production chirp/grid/pitch helpers. Проверяются complex field (не только нормированная амплитуда), независимые pitches, градиент по фазе, odd/rectangular anisotropic grids и все четыре z на128x128. Коэффициент exp(ikz)/(i*lambda*z), площади пикселей и знак не могут исчезнуть за PNG-нормировкой. Fault-injection: неверные scale/sign/orientation обязаны не проходить этот oracle. Это подтверждает заданный дискретный оператор, а не точность непрерывной оптики/ПВМС.
+2. **Передача данных / roundtrip** — `tests/integration/test_submission_roundtrip.py`, координатор. Только настоящие #14/#3/#4: 4PNG -> shared Adam -> DOE.png -> reload -> 4Fresnel -> 4amplitude PNG -> reload -> Pearson/SSIM. Повторный вызов того же propagator здесь проверяет передачу данных и сохранение, НЕ является независимым физическим oracle.
+
+Оба gate обязательны, запускаются отдельными CI steps, отсутствующий реальный модуль даёт FAIL, а не skip/stub. Оба должны пройти на одном интеграционном tree до научной приёмки; зелёный unit CI отдельного PR недостаточен. Локальный pre-merge integration snapshot с точными SHA допустим без merge чужих веток. Реальное обучение и выпуск данных A — после физического gate.
 
 ## Согласование
 Павел, ggmaster913, playerr456, MVRto01 подтверждают shapes/signatures, геометрию, codec и предложенные display/SSIM conventions в PR. После merge фиксируем commit и запускаем зависимые задачи. Изменение общего файла только координатором. Текущий PR не реализует научные модули и не доказывает качество; один Adam baseline не завершает обязательный нейросетевой кейс.
