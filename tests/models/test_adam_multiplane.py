@@ -1,4 +1,4 @@
-"""Tests for multi-plane Adam synthesis (contract v1, Issue #3).
+"""Tests for multi-plane Adam synthesis (contract v1.1-amplitude, Issue #3).
 
 Unit tests use a local differentiable stub propagator (random phase screen + FFT,
 seeded by distance). The stub is NOT a Fresnel model and proves nothing about
@@ -19,7 +19,9 @@ from doe_core.contracts_v1 import (  # noqa: E402
     FresnelGeometry,
     MultiPlaneResult,
 )
+from doe_core.observables import field_observables  # noqa: E402
 from doe_models.adam_multiplane import (  # noqa: E402
+    multiplane_amplitudes,
     multiplane_intensities,
     multiplane_loss,
     synthesize_multiplane,
@@ -64,6 +66,28 @@ class WorseningStub(ScreenStub):
         return FresnelField(res.field + 5.0 * forward_index, res.output_pitch_m, res.distance_m)
 
 
+class ModulusStub:
+    """Phase-independent output modulus M_k: |U_out| = M_k exactly (|U_in| = 1)."""
+
+    def __init__(self, moduli: torch.Tensor) -> None:
+        self.moduli = moduli  # [4,H,W], real, >= 0
+
+    def __call__(self, field, geometry):
+        k = list(CONFIG.distances_m).index(geometry.distance_m)
+        out = field * self.moduli[k].to(field.real.dtype)
+        return FresnelField(out, geometry.output_pitch_m(H, W), geometry.distance_m)
+
+
+class HalfDarkStub(ScreenStub):
+    """ScreenStub output with exact zeros on the left half of every plane."""
+
+    def __call__(self, field, geometry):
+        res = super().__call__(field, geometry)
+        out = res.field.clone()
+        out[..., : W // 2] = 0
+        return FresnelField(out, res.output_pitch_m, res.distance_m)
+
+
 def quartet(batch: int = 1, dtype=torch.float32) -> torch.Tensor:
     """Four different, asymmetric binary targets in [0,1], shape [B,4,1,H,W]."""
     t = torch.zeros(batch, 4, 1, H, W, dtype=dtype)
@@ -82,21 +106,19 @@ def wrap(phi: torch.Tensor) -> torch.Tensor:
 
 
 # --------------------------------------------------------------------------- loss
-# The three tests below pin the PROVISIONAL v1.0 policy (I/max(I) vs T). They are the
-# only policy-specific tests and must be rewritten if the updated contract switches
-# to the DOCX |U| policy; every other test calls multiplane_loss and stays valid.
+# v1.1-amplitude policy: loss = mean((A/max(A) - T)^2), A = |U|, max per plane.
 def test_loss_matches_hand_computed_value():
-    intensities = torch.zeros(1, 4, 1, 2, 2, dtype=torch.float64)
-    targets = torch.zeros_like(intensities)
-    intensities[0, 0, 0] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    amplitudes = torch.zeros(1, 4, 1, 2, 2, dtype=torch.float64)
+    targets = torch.zeros_like(amplitudes)
+    amplitudes[0, 0, 0] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
     targets[0, 0, 0] = torch.tensor([[0.0, 0.5], [1.0, 1.0]])
     for k in (1, 2, 3):  # perfect match up to scale on the other planes
         targets[0, k, 0] = torch.tensor([[0.0, 0.25], [0.5, 1.0]])
-        intensities[0, k, 0] = 7.0 * targets[0, k, 0]
+        amplitudes[0, k, 0] = 7.0 * targets[0, k, 0]
 
-    total, per_plane = multiplane_loss(intensities, targets)
+    total, per_plane = multiplane_loss(amplitudes, targets)
 
-    # plane 0: I/max = [.25,.5,.75,1]; diff^2 = [.0625,0,.0625,0] -> mean .03125
+    # plane 0: A/max = [.25,.5,.75,1]; diff^2 = [.0625,0,.0625,0] -> mean .03125
     assert per_plane.tolist() == pytest.approx([0.03125, 0.0, 0.0, 0.0], abs=1e-15)
     assert float(total) == pytest.approx(0.0078125, abs=1e-15)
 
@@ -104,17 +126,52 @@ def test_loss_matches_hand_computed_value():
 def test_loss_gradient_includes_max_denominator():
     """gradcheck over the full Jacobian fails if max(I) were detached."""
     gen = torch.Generator().manual_seed(1)
-    intensities = (torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.1)
-    intensities.requires_grad_(True)
+    amplitudes = (torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.1)
+    amplitudes.requires_grad_(True)
     targets = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64)
-    assert torch.autograd.gradcheck(lambda i: multiplane_loss(i, targets)[0], (intensities,))
+    assert torch.autograd.gradcheck(lambda i: multiplane_loss(i, targets)[0], (amplitudes,))
 
 
-def test_loss_rejects_zero_intensity_plane():
-    intensities = torch.ones(1, 4, 1, 4, 4, dtype=torch.float64)
-    intensities[0, 2] = 0.0
+def test_synthesis_compares_amplitude_not_intensity():
+    """|U| = [1,2] pattern: amplitude display [.5,1] matches T exactly, |U|^2 would not."""
+    moduli = torch.ones(4, H, W, dtype=torch.float64)
+    moduli[:, :, W // 2:] = 2.0
+    targets = (moduli / 2.0).to(torch.float32).unsqueeze(0).unsqueeze(2)  # [1,4,1,H,W]
+    result = synthesize_multiplane(targets, CONFIG, propagate_fn=ModulusStub(moduli), steps=1, seed=0)
+    assert result.loss_history[0] == pytest.approx(0.0, abs=1e-12)
+    assert torch.allclose(result.amplitudes, moduli.float().unsqueeze(0).unsqueeze(2), rtol=1e-6)
+    assert torch.allclose(result.intensities, result.amplitudes.square(), rtol=1e-6)
+    # the squared observable against the same targets: [.25,1] vs [.5,1] -> 0.25^2 / 2
+    squared, _ = multiplane_loss(result.intensities, targets)
+    assert float(squared) == pytest.approx(0.03125, rel=1e-6)
+
+
+def test_amplitude_loss_gradcheck_through_complex_field():
+    """Off zeros: complex field -> |U| -> loss, full Jacobian incl. the max denominator."""
+    gen = torch.Generator().manual_seed(2)
+    re_ = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.2
+    im_ = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.2
+    field = torch.complex(re_, im_).requires_grad_(True)
+    targets = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64)
+    assert torch.autograd.gradcheck(
+        lambda f: multiplane_loss(field_observables(f).amplitude, targets)[0], (field,))
+
+
+def test_gradient_is_finite_where_field_is_exactly_zero():
+    phase = (0.1 * torch.arange(H * W, dtype=torch.float64).reshape(1, 1, H, W)).requires_grad_(True)
+    amplitudes = multiplane_amplitudes(phase, CONFIG, HalfDarkStub())
+    assert (amplitudes[..., : W // 2] == 0).all()
+    loss, _ = multiplane_loss(amplitudes, quartet(dtype=torch.float64))
+    loss.backward()
+    assert torch.isfinite(phase.grad).all()
+    assert phase.grad.abs().sum() > 0
+
+
+def test_loss_rejects_zero_amplitude_plane():
+    amplitudes = torch.ones(1, 4, 1, 4, 4, dtype=torch.float64)
+    amplitudes[0, 2] = 0.0
     with pytest.raises(ValueError, match="max"):
-        multiplane_loss(intensities, torch.zeros_like(intensities))
+        multiplane_loss(amplitudes, torch.zeros_like(amplitudes))
 
 
 # --------------------------------------------------------------------------- forward
@@ -123,9 +180,9 @@ def test_forward_uses_one_field_for_all_four_planes_in_distance_order():
     phase = torch.zeros(1, 1, H, W)
     phase[0, 0, 10:20, 10:20] = 1.3
 
-    intensities = multiplane_intensities(phase, CONFIG, stub)
+    amplitudes = multiplane_amplitudes(phase, CONFIG, stub)
 
-    assert intensities.shape == (1, 4, 1, H, W)
+    assert amplitudes.shape == (1, 4, 1, H, W)
     assert [g.distance_m for _, g in stub.calls] == list(CONFIG.distances_m)
     first = stub.calls[0][0]
     assert all(torch.equal(f, first) for f, _ in stub.calls)
@@ -134,15 +191,22 @@ def test_forward_uses_one_field_for_all_four_planes_in_distance_order():
 
 
 def test_planes_differ_by_distance():
-    intensities = multiplane_intensities(torch.zeros(1, 1, H, W) + 0.3 * quartet()[:, 0], CONFIG, ScreenStub())
+    amplitudes = multiplane_amplitudes(torch.zeros(1, 1, H, W) + 0.3 * quartet()[:, 0], CONFIG, ScreenStub())
     for a in range(4):
         for b in range(a + 1, 4):
-            assert not torch.allclose(intensities[:, a], intensities[:, b])
+            assert not torch.allclose(amplitudes[:, a], amplitudes[:, b])
+
+
+def test_diagnostic_intensities_are_squared_amplitudes():
+    phase = 0.7 * quartet(dtype=torch.float64)[:, 2]
+    amplitudes = multiplane_amplitudes(phase, CONFIG, ScreenStub())
+    intensities = multiplane_intensities(phase, CONFIG, ScreenStub())
+    assert torch.allclose(intensities, amplitudes.square(), rtol=1e-12, atol=0)
 
 
 def test_gradient_reaches_shared_phase():
     phase = (0.1 * torch.arange(H * W, dtype=torch.float64).reshape(1, 1, H, W)).requires_grad_(True)
-    loss, _ = multiplane_loss(multiplane_intensities(phase, CONFIG, ScreenStub()),
+    loss, _ = multiplane_loss(multiplane_amplitudes(phase, CONFIG, ScreenStub()),
                               quartet(dtype=torch.float64))
     loss.backward()
     assert phase.grad is not None
@@ -158,7 +222,7 @@ def test_each_plane_loss_drives_the_same_phase():
     grads = []
     for k in range(4):
         phase = base.clone().requires_grad_(True)
-        _, per_plane = multiplane_loss(multiplane_intensities(phase, CONFIG, ScreenStub()), targets)
+        _, per_plane = multiplane_loss(multiplane_amplitudes(phase, CONFIG, ScreenStub()), targets)
         per_plane[k].backward()
         grads.append(phase.grad)
         assert torch.isfinite(phase.grad).all()
@@ -168,7 +232,7 @@ def test_each_plane_loss_drives_the_same_phase():
             assert not torch.allclose(grads[a], grads[b])
 
     phase = base.clone().requires_grad_(True)
-    total, _ = multiplane_loss(multiplane_intensities(phase, CONFIG, ScreenStub()), targets)
+    total, _ = multiplane_loss(multiplane_amplitudes(phase, CONFIG, ScreenStub()), targets)
     total.backward()
     assert torch.allclose(phase.grad, sum(grads) / 4, rtol=1e-10, atol=1e-18)
 
@@ -188,7 +252,7 @@ def test_forward_rejects_bad_propagator_output():
         return FresnelField(field[..., :-1], geometry.output_pitch_m(H, W), geometry.distance_m)
 
     with pytest.raises(ValueError, match="propagat"):
-        multiplane_intensities(torch.zeros(1, 1, H, W), CONFIG, bad)
+        multiplane_amplitudes(torch.zeros(1, 1, H, W), CONFIG, bad)
 
 
 # --------------------------------------------------------------------------- synthesis
@@ -204,6 +268,7 @@ def test_result_shapes_and_types(run32):
     result, _ = run32
     assert isinstance(result, MultiPlaneResult)
     assert result.phase_rad.shape == (1, 1, H, W)
+    assert result.amplitudes.shape == (1, 4, 1, H, W)
     assert result.intensities.shape == (1, 4, 1, H, W)
     assert result.phase_rad.dtype == torch.float32
     assert not result.phase_rad.requires_grad
@@ -214,8 +279,8 @@ def test_result_shapes_and_types(run32):
 def test_result_is_finite_and_phase_in_range(run32):
     result, _ = run32
     assert torch.isfinite(result.phase_rad).all()
-    assert torch.isfinite(result.intensities).all()
-    assert (result.intensities >= 0).all()
+    assert torch.isfinite(result.amplitudes).all() and torch.isfinite(result.intensities).all()
+    assert (result.amplitudes >= 0).all()
     assert all(math.isfinite(v) for v in result.loss_history)
     assert (result.phase_rad >= -math.pi).all() and (result.phase_rad < math.pi).all()
 
@@ -227,10 +292,11 @@ def test_total_loss_decreases(run32):
     assert result.metadata["best_step"] > 0
 
 
-def test_returned_intensities_match_fresh_forward(run32):
+def test_returned_amplitudes_match_fresh_forward(run32):
     result, targets = run32
-    again = multiplane_intensities(result.phase_rad, CONFIG, ScreenStub())
-    assert torch.allclose(again, result.intensities, rtol=1e-6, atol=0)
+    again = multiplane_amplitudes(result.phase_rad, CONFIG, ScreenStub())
+    assert torch.allclose(again, result.amplitudes, rtol=1e-6, atol=0)
+    assert torch.allclose(result.intensities, result.amplitudes.square(), rtol=1e-6, atol=0)
     loss, per_plane = multiplane_loss(again, targets)
     assert float(loss) == pytest.approx(result.metadata["final_loss"], rel=1e-6)
     assert result.metadata["final_loss"] == pytest.approx(min(result.loss_history), rel=1e-4)
@@ -242,8 +308,9 @@ def test_metadata_records_planes_and_policy(run32):
     md = result.metadata
     assert md["method"] == "adam_multiplane"
     assert md["seed"] == 3 and md["steps"] == 300 and md["lr"] == 0.05
-    assert md["loss_policy"] == "per_plane_max_display_mse_v1"
-    assert md["loss_policy_status"].startswith("provisional")
+    assert md["loss_policy"] == "per_plane_max_amplitude_mse_v1_1"
+    assert md["observation"] == "amplitude"
+    assert md["contract_version"] == "1.1-amplitude"
     assert md["distances_m"] == [0.0241, 0.0253, 0.0265, 0.0277]
     pitches = [p[1] for p in md["output_pitches_m"]]
     assert pitches == pytest.approx([10.0165625e-6, 10.5153125e-6, 11.0140625e-6, 11.5128125e-6], rel=1e-12)
@@ -286,6 +353,7 @@ def test_float64_and_batch_are_preserved():
     result = synthesize_multiplane(targets, CONFIG, propagate_fn=ScreenStub(), steps=2, seed=0)
     assert result.phase_rad.shape == (2, 1, H, W)
     assert result.phase_rad.dtype == torch.float64
+    assert result.amplitudes.dtype == torch.float64
     assert result.intensities.dtype == torch.float64
     assert result.metadata["dtype"] == "float64"
 
@@ -330,7 +398,7 @@ def test_rejects_wrong_config_type():
         synthesize_multiplane(quartet(), geometry, propagate_fn=ScreenStub(), steps=1)
 
 
-def test_rejects_zero_intensity_from_propagator():
+def test_rejects_zero_amplitude_from_propagator():
     def dark(field, geometry):
         return FresnelField(torch.zeros_like(field), geometry.output_pitch_m(H, W), geometry.distance_m)
 
@@ -348,8 +416,8 @@ def test_integration_with_real_fresnel():
     result = synthesize_multiplane(targets, CONFIG, propagate_fn=fresnel.propagate_fresnel,
                                    steps=40, lr=0.1, seed=0)
     assert min(result.loss_history) < result.loss_history[0]
-    assert torch.isfinite(result.intensities).all()
-    again = multiplane_intensities(result.phase_rad, CONFIG, fresnel.propagate_fresnel)
-    assert torch.allclose(again, result.intensities, rtol=1e-10, atol=0)
+    assert torch.isfinite(result.amplitudes).all()
+    again = multiplane_amplitudes(result.phase_rad, CONFIG, fresnel.propagate_fresnel)
+    assert torch.allclose(again, result.amplitudes, rtol=1e-10, atol=0)
     pitches = [p[1] for p in result.metadata["output_pitches_m"]]
     assert pitches == pytest.approx([10.0165625e-6, 10.5153125e-6, 11.0140625e-6, 11.5128125e-6], rel=1e-12)

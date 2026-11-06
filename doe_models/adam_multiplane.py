@@ -1,15 +1,10 @@
-"""Multi-plane Adam synthesis of ONE shared DOE phase (contract v1, Issue #3).
+"""Multi-plane Adam synthesis of ONE shared DOE phase (contract v1.1-amplitude, Issue #3).
 
 One real phase [B,1,H,W] -> U = exp(i*phase) (A=1) -> injected propagator at the four
-official distances -> raw intensities [B,4,1,H,W] -> per-plane max display -> MSE
-against targets in [0,1]. The propagator is always injected; this module contains no
-optics of its own.
-
-The loss/normalisation policy is PROVISIONAL: it is the v1.0 proposal of PR #15
-(intensity I=|U|^2, per-plane max). The official DOCX asks for reconstructed field
-modulus |U|; until the updated contract fixes the compared quantity and its
-normalisation, the whole policy lives only in `multiplane_loss` so it can be replaced
-in one place. The optimiser, forward and best-state logic do not depend on it.
+official distances -> field_observables(U): PRIMARY amplitude A=|U| [B,4,1,H,W] and
+diagnostic intensity A^2 -> per-plane max display A/max(A) -> MSE against targets
+PNG/255 (already amplitudes, no sqrt). The propagator is always injected; this module
+contains no optics of its own.
 """
 from __future__ import annotations
 
@@ -20,12 +15,12 @@ from numbers import Real
 
 import torch
 
-from doe_core.contracts_v1 import CaseConfigV1, FresnelField, FresnelPropagator, MultiPlaneResult
+from doe_core.contracts_v1 import (CONTRACT_VERSION_V1, LOSS_POLICY_V1, OBSERVATION_V1, CaseConfigV1,
+                                   FresnelField, FresnelPropagator, MultiPlaneResult)
+from doe_core.observables import field_observables
 
-__all__ = ["LOSS_POLICY", "LOSS_POLICY_STATUS", "multiplane_intensities", "multiplane_loss", "synthesize_multiplane"]
+__all__ = ["multiplane_amplitudes", "multiplane_intensities", "multiplane_loss", "synthesize_multiplane"]
 
-LOSS_POLICY = "per_plane_max_display_mse_v1"
-LOSS_POLICY_STATUS = "provisional: PR #15 v1.0 proposal on I=|U|^2; DOCX |U| policy pending contract update"
 NUM_PLANES = 4
 _MAX_EPS = 1e-12
 _REAL_DTYPES = (torch.float32, torch.float64)
@@ -33,7 +28,7 @@ _REAL_DTYPES = (torch.float32, torch.float64)
 
 def _forward(phase: torch.Tensor, config: CaseConfigV1, propagate_fn: FresnelPropagator):
     field = torch.complex(torch.cos(phase), torch.sin(phase))
-    planes, pitches = [], []
+    amplitudes, intensities, pitches = [], [], []
     for k in range(NUM_PLANES):
         geometry = config.plane(k)
         result = propagate_fn(field, geometry)
@@ -42,32 +37,45 @@ def _forward(phase: torch.Tensor, config: CaseConfigV1, propagate_fn: FresnelPro
                 or not out.is_complex() or out.shape != field.shape:
             raise ValueError(f"propagate_fn must return FresnelField with complex field of shape "
                              f"{tuple(field.shape)} (plane {k})")
-        planes.append(out.real ** 2 + out.imag ** 2)
+        obs = field_observables(out)
+        amplitudes.append(obs.amplitude)
+        intensities.append(obs.intensity)
         pitches.append([float(p) for p in result.output_pitch_m])
-    return torch.stack(planes, dim=1), pitches
+    return torch.stack(amplitudes, dim=1), torch.stack(intensities, dim=1), pitches
 
 
-def multiplane_intensities(phase: torch.Tensor, config: CaseConfigV1,
-                           propagate_fn: FresnelPropagator) -> torch.Tensor:
-    """Raw intensities [B,4,1,H,W] of one phase [B,1,H,W] at the four case distances."""
+def _check_phase(phase: torch.Tensor, config: CaseConfigV1) -> None:
     if not isinstance(phase, torch.Tensor) or phase.dtype not in _REAL_DTYPES:
         raise ValueError("phase must be a float32/float64 tensor")
     if phase.ndim != 4 or phase.shape[1] != 1 or tuple(phase.shape[-2:]) != config.image_shape:
         raise ValueError(f"phase must have shape [B,1,{config.image_shape[0]},{config.image_shape[1]}]")
+
+
+def multiplane_amplitudes(phase: torch.Tensor, config: CaseConfigV1,
+                          propagate_fn: FresnelPropagator) -> torch.Tensor:
+    """PRIMARY raw amplitudes |U| [B,4,1,H,W] of one phase [B,1,H,W] at the four distances."""
+    _check_phase(phase, config)
     return _forward(phase, config, propagate_fn)[0]
 
 
-def multiplane_loss(intensities: torch.Tensor, targets: torch.Tensor):
-    """Return (total, per_plane[4]) for mean((I/max(I) - T)^2), max per plane, not detached.
+def multiplane_intensities(phase: torch.Tensor, config: CaseConfigV1,
+                           propagate_fn: FresnelPropagator) -> torch.Tensor:
+    """DIAGNOSTIC raw intensities |U|^2 [B,4,1,H,W]; never used as loss or label."""
+    _check_phase(phase, config)
+    return _forward(phase, config, propagate_fn)[1]
 
-    PROVISIONAL policy (see module docstring). Planes are weighted equally (1/4).
+
+def multiplane_loss(amplitudes: torch.Tensor, targets: torch.Tensor):
+    """v1.1 policy: (total, per_plane[4]) for mean((A/max(A) - T)^2), max per plane, not detached.
+
+    `amplitudes` are raw |U|; targets are PNG/255 amplitudes. Planes weigh 1/4 each.
     """
-    if intensities.ndim != 5 or intensities.shape[1] != NUM_PLANES or intensities.shape != targets.shape:
-        raise ValueError("intensities and targets must share shape [B,4,1,H,W]")
-    peak = intensities.amax(dim=(-2, -1), keepdim=True)
+    if amplitudes.ndim != 5 or amplitudes.shape[1] != NUM_PLANES or amplitudes.shape != targets.shape:
+        raise ValueError("amplitudes and targets must share shape [B,4,1,H,W]")
+    peak = amplitudes.amax(dim=(-2, -1), keepdim=True)
     if bool((peak <= _MAX_EPS).any()):
-        raise ValueError(f"predicted intensity max <= {_MAX_EPS} on at least one plane")
-    sq = (intensities / peak - targets) ** 2
+        raise ValueError(f"predicted amplitude max <= {_MAX_EPS} on at least one plane")
+    sq = (amplitudes / peak - targets) ** 2
     return sq.mean(), sq.mean(dim=(0, 2, 3, 4))
 
 
@@ -130,7 +138,7 @@ def synthesize_multiplane(targets: torch.Tensor, config: CaseConfigV1, *,
     best_loss, best_step, best_phase = math.inf, -1, None
     for step in range(steps + 1):
         optimizer.zero_grad(set_to_none=True)
-        loss, _ = multiplane_loss(_forward(phase, config, propagate_fn)[0], targets)
+        loss, _ = multiplane_loss(_forward(phase, config, propagate_fn)[0], targets)  # amplitudes
         value = float(loss.detach())
         if not math.isfinite(value):
             raise RuntimeError(f"non-finite loss at step {step}")
@@ -144,8 +152,8 @@ def synthesize_multiplane(targets: torch.Tensor, config: CaseConfigV1, *,
 
     returned = _wrap(best_phase)
     with torch.no_grad():
-        intensities, pitches = _forward(returned, config, propagate_fn)
-        final_loss, plane_losses = multiplane_loss(intensities, targets)
+        amplitudes, intensities, pitches = _forward(returned, config, propagate_fn)
+        final_loss, plane_losses = multiplane_loss(amplitudes, targets)
     _sync(device)
     elapsed = time.perf_counter() - start
 
@@ -154,8 +162,10 @@ def synthesize_multiplane(targets: torch.Tensor, config: CaseConfigV1, *,
         "seed": seed,
         "steps": steps,
         "lr": float(lr),
-        "loss_policy": LOSS_POLICY,
-        "loss_policy_status": LOSS_POLICY_STATUS,
+        "contract_version": CONTRACT_VERSION_V1,
+        "observation": OBSERVATION_V1,
+        "loss_policy": LOSS_POLICY_V1,
+        "diagnostics": "intensities = amplitudes**2, not used in loss",
         "plane_weights": [1.0 / NUM_PLANES] * NUM_PLANES,
         "illumination": "A=1, U=exp(i*phase)",
         "initial_phase": "uniform[-pi,pi) from torch.Generator(cpu).manual_seed(seed), float64, then cast",
@@ -172,5 +182,6 @@ def synthesize_multiplane(targets: torch.Tensor, config: CaseConfigV1, *,
         "plane_losses": [float(v) for v in plane_losses],
         "timing_scope": "validation+init+optimisation+final forward",
     }
-    return MultiPlaneResult(phase_rad=returned.detach(), intensities=intensities.detach(),
+    return MultiPlaneResult(phase_rad=returned.detach(), amplitudes=amplitudes.detach(),
+                            intensities=intensities.detach(),
                             loss_history=history, elapsed_s=elapsed, metadata=metadata)
