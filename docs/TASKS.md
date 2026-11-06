@@ -1,25 +1,18 @@
-# Задачи и запуск первой волны
+# Задачи официального кейса v1
 
-GitHub Issues — единственный источник задач и текущих статусов. Тексты локальных I00–I07 не дублируются в репозитории.
+Статус: новая постановка предложена в v1 PR; старт после согласования. GitHub Issues содержат актуальные поручения и prompts, тексты здесь не дублируются.
 
-| Issue | Приоритет | Ответственный | Зависимости |
+| Issue | Приоритет | Владелец | Зависимости/результат |
 |---|---|---|---|
-| [#1 Инфраструктура](https://github.com/NinjaMoons/nuclear-doe-2026/issues/1) | P0 | @NinjaMoons | контракт на review; полное ТЗ и срок кейса ожидаются |
-| [#2 ASM](https://github.com/NinjaMoons/nuclear-doe-2026/issues/2) | P0 | @ggmaster913, assignee установлен | merge контракта из #1 |
-| [#3 Adam](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3) | P0 | @playerr456, invitation pending | merge контракта; итоговая приёмка после #2 и #4 |
-| [#4 Данные/метрики](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4) | P0 | @MVRto01, invitation pending | merge контракта |
-| [#5 U-Net](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5) | P1 | @playerr456, предлагается | #2, #3, #4 |
-| [#6 Benchmark](https://github.com/NinjaMoons/nuclear-doe-2026/issues/6) | P1 | @MVRto01, предлагается | #2, #3, #4; neural сравнение после #5 |
-| [#7 Демо](https://github.com/NinjaMoons/nuclear-doe-2026/issues/7) | P2 | @NinjaMoons | #2, #3, #4; neural path после #5 |
-| [#8 Сдача](https://github.com/NinjaMoons/nuclear-doe-2026/issues/8) | P2 | @NinjaMoons | #2–#7 по требованиям полного ТЗ |
+| [#1](https://github.com/NinjaMoons/nuclear-doe-2026/issues/1) | P0 | NinjaMoons | контракт/источник/ACK/CI |
+| [#2](https://github.com/NinjaMoons/nuclear-doe-2026/issues/2) | P2 дополнительныйкомпонент | ggmaster913 | завершить два замечанияPR13; сохранитьASM |
+| [#14](https://github.com/NinjaMoons/nuclear-doe-2026/issues/14) | P0 | ggmaster913 | single-FFT Fresnel послеv1 |
+| [#3](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3) | P0 | playerr456 | onephase/4planesAdam; startstubпослеv1, приёмка#14+#4 |
+| [#4](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4) | P0 | MVRto01 |4PNG/Pearson/SSIM/яркостныеPNG; независимотфизики |
+| [#5](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5) | P1 обязательный | playerr456 | обученная4to1модель/checkpoint;#14+#4, переиспользуетforward/loss#3 |
+| [#6](https://github.com/NinjaMoons/nuclear-doe-2026/issues/6) | P1 | NinjaMoons | comparison#3/#5 наэкспортированномDOE |
+| [#7](https://github.com/NinjaMoons/nuclear-doe-2026/issues/7) | P0 CLI/export, P2 UI | NinjaMoons | DOEcodec/reload/4restoredPNG/8метрик;#14+#4+#3или#5 |
+| [#8](https://github.com/NinjaMoons/nuclear-doe-2026/issues/8) | P1 обязательный | NinjaMoons | source/model/data/images/measurements/repro |
+| [#10](https://github.com/NinjaMoons/nuclear-doe-2026/issues/10) | P2 | отдельноеисследование | не блокируетmandatoryFresnel |
 
-## Три независимых старта
-После согласования Павлом и merge инфраструктурного PR:
-
-1. @ggmaster913: ветка codex/2-asm, реализовать propagate/intensity и собственные аналитические/gradient тесты. Разрешены doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md.
-2. @playerr456: принять приглашение; после этого координатор ставит assignee. Ветка codex/3-adam, начать с локального differentiable propagator в своём тесте. Разрешены doe_models/adam.py, tests/models/test_adam.py, docs/modules/adam.md. Приёмка с настоящим ASM обязательна позже.
-3. @MVRto01: принять приглашение; затем назначение. Ветка codex/4-data-metrics, генерация targets и аналитические метрики без зависимости от core/models. Разрешены doe_experiments/data.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_metrics.py, docs/modules/metrics.md.
-
-Общий импорт: doe_core.contracts; конкретные формы, единицы и ключи метрик — [INTERFACES](INTERFACES.md). Не редактировать общие __init__.py/requirements/workflow. При зависимости от #1 для начала первой волны требуется merge согласованного контракта и CI, а не формальное закрытие всех организационных пунктов #1. Реализация базовых модулей предварительная до сверки полного ТЗ.
-
-Начальный отчёт исполнителя в своей Issue: доступ подтверждён; ветка; что будет готово первым; оценка времени/блокировки. Передача результата — PR с фактическими тестами. Эта инструкция не означает, что окружение разработчика уже запущено.
+Границы всех файлов: [COORDINATION](COORDINATION.md). Физика и обязательная приёмка: [INTERFACES_V1](INTERFACES_V1.md). Старый PR12 не является официальным roundtrip: он остаётсяlegacy ASMsmoke; новую приёмку подготовиткоординатор вtest_submission_roundtrip.py. Реальных4PNGпока нет, syntheticfixturesявнопомечать.
