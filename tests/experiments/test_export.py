@@ -160,3 +160,75 @@ def test_export_conversion_uses_divide_first_float64(maximum, pixel, code):
     np.testing.assert_array_equal(codes, expected)
     assert maxima == [maximum] * 4
     assert torch.isfinite(normalized).all()
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_neural_cli_orchestration_dtype_and_checkpoint_provenance(tmp_path, monkeypatch, dtype):
+    from types import SimpleNamespace
+    from doe_experiments import cli
+    from doe_models import train_multiplane as training
+    model = torch.nn.Linear(1, 1).to(dtype=dtype)  # Explicit orchestration double.
+    checkpoint = tmp_path / "test-double.pt"
+    checkpoint.write_bytes(b"explicit checkpoint unit double")
+    payload = {"format": training.CHECKPOINT_FORMAT, "contract_version": "1.1-amplitude",
+               "dtype": str(dtype).replace("torch.", ""), "hparams": {"unit_double": True},
+               "sha256": sha256(checkpoint), "code_commit": "unit-test-code-commit",
+               "train_log": {"steps": 0, "n_train": 0, "seed": 17}}
+    monkeypatch.setattr(training, "load_checkpoint", lambda path: (model, payload))
+    inputs = [tmp_path / f"input{i}.png" for i in range(4)]
+    monkeypatch.setattr(cli, "production_components", lambda: SimpleNamespace(
+        load_quartet=lambda paths: torch.ones((1, 4, 1, 128, 128), dtype=torch.float32)))
+    seen = {}
+    def infer(actual_model, data):
+        assert actual_model is model and data.dtype == dtype
+        return torch.zeros((1, 1, 128, 128), dtype=dtype)
+    def export(paths, phase, output, **kwargs):
+        seen.update(kwargs)
+        assert phase.dtype == dtype and paths == inputs
+        return {"completed": True}
+    monkeypatch.setattr(training, "infer_phase", infer)
+    monkeypatch.setattr(cli, "export_run", export)
+    args = ["neural", "--checkpoint", str(checkpoint), "--targets", *map(str, inputs),
+            "--output-dir", str(tmp_path / "new-run"), "--synthetic-test"]
+    assert cli.main(args) == 0
+    metadata = seen["metadata"]
+    assert metadata["method"] == "fourinput_unet" and metadata["cli_method"] == "neural"
+    assert metadata["checkpoint_sha256"] == sha256(checkpoint)
+    assert metadata["code_commit"] == "unit-test-code-commit"
+    assert metadata["training"]["steps"] == 0
+    assert metadata["training_verified"] is False
+    assert metadata["phase_dtype"] == payload["dtype"]
+    assert metadata["source_checkpoint"] == str(checkpoint.resolve())
+    assert metadata["reproduce_argv"] == ["python", "-m", "doe_experiments.cli", *args]
+    assert metadata["checkpoint_load_elapsed_s"] >= 0 and metadata["inference_elapsed_s"] >= 0
+    assert seen["synthetic_test"] is True
+    # An explicit matching dtype succeeds; a mismatch fails before inference/export.
+    assert cli.main([*args, "--dtype", payload["dtype"]]) == 0
+    seen.clear()
+    assert cli.main([*args, "--dtype", "float64" if dtype == torch.float32 else "float32"]) == 2
+    assert not seen and next(model.parameters()).dtype == dtype
+    assert not (tmp_path / "new-run").exists()
+
+
+@pytest.mark.parametrize("failure", ["missing", "corrupt", "inference"])
+def test_neural_cli_errors_do_not_export(tmp_path, monkeypatch, failure):
+    from types import SimpleNamespace
+    from doe_experiments import cli
+    from doe_models import train_multiplane as training
+    checkpoint = tmp_path / "bad.pt"
+    monkeypatch.setattr(cli, "production_components", lambda: SimpleNamespace(
+        load_quartet=lambda paths: torch.ones((1, 4, 1, 128, 128))))
+    if failure == "corrupt":
+        checkpoint.write_bytes(b"invalid checkpoint bytes")
+    elif failure == "inference":
+        monkeypatch.setattr(training, "load_checkpoint", lambda path: (torch.nn.Linear(1, 1), {}))
+        def broken(*args):
+            raise RuntimeError("inference unit double failed")
+        monkeypatch.setattr(training, "infer_phase", broken)
+    def export_must_not_run(*args, **kwargs):
+        raise AssertionError("invalid checkpoint/inference must not export")
+    monkeypatch.setattr(cli, "export_run", export_must_not_run)
+    output = tmp_path / "must-not-exist"
+    assert cli.main(["neural", "--checkpoint", str(checkpoint), "--targets", "a", "b", "c", "d",
+                     "--output-dir", str(output)]) == 2
+    assert not output.exists()

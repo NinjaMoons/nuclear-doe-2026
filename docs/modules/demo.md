@@ -44,8 +44,23 @@ helpers, including odd/anisotropic grids and four official distances. Its fault
 checks reject scale/conjugation/orientation/shift errors hidden by a shared forward.
 CI runs unit tests and both mandatory steps; unit success alone cannot accept this PR.
 
-Neural CLI/checkpoint support is the next stage, after the physical forward and
-shared-phase Adam baseline pass. No long training is started by this CLI or gate.
+Neural checkpoint export uses the existing checkpoint loader and inference API:
+
+```powershell
+python -m doe_experiments.cli neural --checkpoint model.pt --targets a.png b.png c.png d.png --output-dir artifacts/neural01 --synthetic-test
+python -m pytest tests/integration/test_neural_checkpoint_roundtrip.py -q
+```
+
+Use `--synthetic-test` only for synthetic inputs. Dtype defaults to checkpoint
+weights; explicit `--dtype` must match, otherwise the CLI fails without casting
+weights. The same saved/reloaded DOE export path produces all four reconstructions.
+Metadata preserves checkpoint SHA256, original path, code commit and training
+provenance via `checkpoint_metadata`, plus separate load/inference timings.
+`training_verified=false` explicitly means loading/inference does not verify
+training or quality. The neural integration test uses an UNTRAINED zero-update
+checkpoint; it proves real module plumbing, not learned performance. Both existing
+mandatory gates still run separately. No training is started by this CLI or test.
+Reproduce with the recorded argv, same checkpoint/dtype and a NEW output directory.
 
 Contract v1.1-amplitude uses abs(U), not abs(U)**2, for labels, loss and submitted PNGs.
 Input PNG/255 already denotes target amplitude: never apply an additional square root.
