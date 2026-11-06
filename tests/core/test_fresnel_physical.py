@@ -666,6 +666,6 @@ def test_lsq_zero_overlap_stationarity_vs_cosine():
     cos = (a * t).sum() / (a.norm() * t.norm())
     (g_lsq,) = torch.autograd.grad(1 - cos**2, a, retain_graph=True)
     (g_cos,) = torch.autograd.grad(1 - cos, a)
-    assert float(cos) == 0.0
+    assert cos.item() == 0.0
     assert float(g_lsq.abs().max()) == 0.0
     assert float(g_cos.abs().max()) > 0  # pushes amplitude towards the target support
