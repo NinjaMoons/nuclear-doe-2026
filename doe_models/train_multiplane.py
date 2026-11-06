@@ -22,11 +22,12 @@ import torch
 from doe_core.contracts_v1 import (CONTRACT_VERSION_V1, LOSS_POLICY_V1, OBSERVATION_V1, CaseConfigV1,
                                    FresnelPropagator)
 from doe_models.adam_multiplane import multiplane_amplitudes, multiplane_loss
-from doe_models.unet_multiplane import FourInputUNet
+from doe_models.unet_multiplane import FourInputUNet, build_model
 
-__all__ = ["CHECKPOINT_FORMAT", "TRAINING_OBJECTIVES", "check_disjoint_ids", "checkpoint_metadata",
-           "evaluate_model", "infer_phase", "load_checkpoint", "physics_loss", "save_checkpoint",
-           "train_multiplane", "training_objective"]
+__all__ = ["CHECKPOINT_FORMAT", "MANIFEST_SCHEMA", "SPLITS", "TRAINING_OBJECTIVES", "DriverComponents",
+           "check_disjoint_ids", "checkpoint_metadata", "evaluate_checkpoint", "evaluate_model", "infer_phase",
+           "load_checkpoint", "load_manifest", "main", "physics_loss", "production_components",
+           "save_checkpoint", "train_multiplane", "training_objective"]
 
 CHECKPOINT_FORMAT = "doe_fourinput_unet_v1"
 CONTRACT_OBJECTIVE = "contract_mse"
@@ -138,6 +139,12 @@ def _check_targets(targets, config: CaseConfigV1) -> None:
         raise ValueError(f"targets must be {config.image_shape} images")
 
 
+def _check_device(model: torch.nn.Module, *tensors) -> None:
+    devices = {p.device for p in model.parameters()} | {t.device for t in tensors if t is not None}
+    if len(devices) != 1:
+        raise ValueError(f"model parameters and targets must share one device, got {sorted(map(str, devices))}")
+
+
 def _json_config(config: CaseConfigV1) -> dict:
     return {k: list(v) if isinstance(v, tuple) else v for k, v in dataclasses.asdict(config).items()}
 
@@ -147,12 +154,17 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
                      batch_size: int = 4, seed: int = 0, val_targets: torch.Tensor | None = None,
                      eval_every: int | None = None, train_ids: Sequence[str] | None = None,
                      val_ids: Sequence[str] | None = None, test_ids: Sequence[str] | None = None,
-                     training_objective: str = CONTRACT_OBJECTIVE, val_metrics_fn=None) -> dict:
+                     training_objective: str = CONTRACT_OBJECTIVE, val_metrics_fn=None,
+                     on_validate=None) -> dict:
     """Train in place with Adam; if `val_targets` is given the best-validation weights are kept.
 
     `training_objective` selects the TRAINING loss (default: contract MSE); the best state is
     chosen by the same objective on validation, the contract MSE is logged separately.
     `val_metrics_fn(amplitudes, targets)` may inject official export metrics into each val log.
+    `on_validate(step, model, entry, is_best, is_last)` is called after every validation with the
+    CURRENT weights (before the final best-state restore), e.g. to write periodic/best/last
+    checkpoints. One optimizer and one batch generator serve the whole run.
+    Model parameters and all target tensors must live on one device (else ValueError).
     Returns a JSON-compatible training log. Batches are drawn with a seed-local generator.
     """
     objective_name = training_objective
@@ -175,6 +187,12 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
         if ids is not None and (data is None or len(ids) != data.shape[0]):
             raise ValueError(f"{name} must have one ID per quartet")
     check_disjoint_ids(train=train_ids, val=val_ids, test=test_ids)
+    _check_device(model, train_targets, val_targets)
+    device = train_targets.device
+
+    def sync() -> None:
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
 
     start = time.perf_counter()
     gen = torch.Generator().manual_seed(seed)
@@ -197,7 +215,7 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
         "test_ids": None if test_ids is None else list(test_ids),
         "initial": None, "history": [], "val": [],
         "best_step": None, "best_val_loss": None, "zero_target_fallbacks": 0,
-        "device": str(train_targets.device), "dtype": str(train_targets.dtype).replace("torch.", ""),
+        "device": str(device), "dtype": str(train_targets.dtype).replace("torch.", ""),
         "torch_version": str(torch.__version__),
     }
     initial = evaluate(train_targets)
@@ -215,17 +233,22 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
                  "bright_fraction": r["bright_fraction"], "zero_target_planes": r["zero_target_planes"],
                  "metrics": r.get("metrics")}
         log["val"].append(entry)
-        if log["best_val_loss"] is None or r["objective"] < log["best_val_loss"]:
+        is_best = log["best_val_loss"] is None or r["objective"] < log["best_val_loss"]
+        if is_best:
             log["best_step"], log["best_val_loss"] = step, r["objective"]
             best_state = copy.deepcopy(model.state_dict())
+        if on_validate is not None:
+            on_validate(step, model, entry, is_best, step == steps)
 
     if val_targets is not None:
         validate(0)
     model.train()
     n = train_targets.shape[0]
     for step in range(1, steps + 1):
+        sync()
+        t_step = time.perf_counter()
         idx = torch.randperm(n, generator=gen)[:min(batch_size, n)]
-        batch = train_targets[idx.to(train_targets.device)]
+        batch = train_targets[idx.to(device)]
         optimizer.zero_grad(set_to_none=True)
         loss, info = _objective(
             multiplane_amplitudes(model(batch), config, propagate_fn), batch, objective_name)
@@ -238,9 +261,11 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
         if not math.isfinite(grad_norm):
             raise RuntimeError(f"non-finite gradient at step {step}")
         optimizer.step()
+        sync()
         log["zero_target_fallbacks"] += info["zero_target_planes"]
         log["history"].append({"step": step, "train_loss": value, "objective": value,
-                               "contract_mse": info["contract_mse"], "grad_norm": grad_norm})
+                               "contract_mse": info["contract_mse"], "grad_norm": grad_norm,
+                               "step_s": time.perf_counter() - t_step})
         if val_targets is not None and (step % eval_every == 0 or step == steps):
             validate(step)
 
@@ -341,3 +366,347 @@ def checkpoint_metadata(payload: dict) -> dict:
         "dtype": payload["dtype"], "torch_version": payload.get("torch_version"),
         "training": {k: log.get(k) for k in keys},
     }
+
+
+# ============================================================================ training driver (#5B)
+# python -m doe_models.train_multiplane --manifest M --out-dir NEW_DIR --device cuda [...]
+# One continuous run (one Adam, one batch generator), validation at 0 / every N / final, weights-only
+# checkpoints (periodic, best by validation objective, last), then a NEW-PROCESS evaluation of the best
+# checkpoint through the existing export_run (#7). Physics, PNG IO, metrics and export are injected.
+MANIFEST_SCHEMA = "doe_training_manifest_v1"
+SPLITS = ("train", "val", "test")
+_CODE_FILES = ("doe_models/train_multiplane.py", "doe_models/unet_multiplane.py", "doe_models/adam_multiplane.py",
+               "doe_core/contracts_v1.py", "doe_core/observables.py", "doe_core/fresnel.py")
+
+
+@dataclasses.dataclass(frozen=True)
+class DriverComponents:
+    """Injected collaborators: Fresnel (#14), PNG quartet loader (#4A), val metrics (#4A), export_run (#7)."""
+    propagate: FresnelPropagator
+    load_quartet: object
+    val_metrics: object
+    export_run: object
+
+
+def production_components() -> DriverComponents:
+    """The project's real modules; imported lazily so the trainer itself has no hard dependency."""
+    import numpy as np
+    from doe_core.fresnel import propagate_fresnel
+    from doe_experiments.data import load_png_quartet
+    from doe_experiments.export import export_run
+    from doe_experiments.metrics import evaluate_multiplane
+    from doe_experiments.png_io import amplitude_to_u8
+
+    def val_metrics(amplitudes, targets):
+        codes = amplitude_to_u8(amplitudes.detach().cpu())
+        pairs = evaluate_multiplane(torch.from_numpy(codes.astype(np.float64) / 255), targets.detach().cpu().double())
+        P = np.array([[np.nan if m.pearson is None else m.pearson for m in b] for b in pairs], dtype=float)
+        S = np.array([[m.ssim for m in b] for b in pairs], dtype=float)
+        return {"pearson_plane": [_finite_or_none(v) for v in np.nanmean(P, 0)],
+                "ssim_plane": [float(v) for v in S.mean(0)], "source": "official amplitude_to_u8 + evaluate_multiplane"}
+
+    return DriverComponents(propagate_fresnel, load_png_quartet, val_metrics, export_run)
+
+
+def _finite_or_none(value):
+    value = float(value)
+    return value if math.isfinite(value) else None
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _safe_relative(base: Path, rel) -> Path:
+    if not isinstance(rel, str) or not rel:
+        raise ValueError("manifest paths must be non-empty strings")
+    p = Path(rel)
+    if p.is_absolute() or p.drive or ".." in p.parts:
+        raise ValueError(f"manifest path {rel!r} must be relative to the manifest and stay inside it")
+    full = (base / p).resolve()
+    if base.resolve() not in full.parents:
+        raise ValueError(f"manifest path {rel!r} escapes the manifest directory")
+    return full
+
+
+def load_manifest(path, *, load_quartet) -> dict:
+    """Strictly validate a `doe_training_manifest_v1` and load each split with `load_quartet`.
+
+    Every PNG must match its SHA256; keys `corpus_id:local_sample_id` are unique; one origin_id never
+    appears in two splits; train/val/test are all non-empty; paths stay inside the manifest directory.
+    """
+    import json
+    path = Path(path)
+    raw = path.read_bytes()
+    manifest = json.loads(raw.decode("utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("schema") != MANIFEST_SCHEMA:
+        raise ValueError(f"manifest schema must be {MANIFEST_SCHEMA!r}")
+    if manifest.get("contract_version") != CONTRACT_VERSION_V1:
+        raise ValueError(f"manifest contract_version must be {CONTRACT_VERSION_V1!r}")
+    samples = manifest.get("samples")
+    if not isinstance(samples, list) or not samples:
+        raise ValueError("manifest samples must be a non-empty list")
+    base = path.parent
+    keys, origin_split = set(), {}
+    rows = {s: [] for s in SPLITS}
+    for i, s in enumerate(samples):
+        if not isinstance(s, dict):
+            raise ValueError(f"sample {i} must be an object")
+        corpus, local, origin, split = s.get("corpus_id"), s.get("local_sample_id"), s.get("origin_id"), s.get("split")
+        for name, value in (("corpus_id", corpus), ("local_sample_id", local), ("origin_id", origin)):
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"sample {i}: {name} must be a non-empty string")
+        if ":" in corpus or ":" in local:
+            raise ValueError(f"sample {i}: corpus_id/local_sample_id must not contain ':'")
+        if split not in SPLITS:
+            raise ValueError(f"sample {i}: split must be one of {SPLITS}, got {split!r}")
+        key = f"{corpus}:{local}"
+        if key in keys:
+            raise ValueError(f"duplicate sample key {key!r}")
+        keys.add(key)
+        if origin_split.setdefault(origin, split) != split:
+            raise ValueError(f"origin {origin!r} appears in splits {origin_split[origin]!r} and {split!r}")
+        paths, hashes = s.get("paths"), s.get("sha256")
+        if not isinstance(paths, list) or len(paths) != 4 or not isinstance(hashes, list) or len(hashes) != 4:
+            raise ValueError(f"sample {key}: exactly 4 ordered paths and 4 sha256 values are required")
+        files = [_safe_relative(base, p) for p in paths]
+        for f, h in zip(files, hashes):
+            if not f.is_file():
+                raise ValueError(f"sample {key}: missing file {f}")
+            if not isinstance(h, str) or _sha256_file(f) != h.lower():
+                raise ValueError(f"sample {key}: SHA256 mismatch for {f.name}")
+        rows[split].append((key, origin, s.get("kind"), files))
+    for split in SPLITS:
+        if not rows[split]:
+            raise ValueError(f"manifest split {split!r} is empty")
+    splits = {}
+    for split, items in rows.items():
+        targets = torch.cat([load_quartet(files) for _, _, _, files in items])
+        splits[split] = {"targets": targets, "ids": [k for k, _, _, _ in items],
+                         "origins": [o for _, o, _, _ in items], "kinds": [kd for _, _, kd, _ in items],
+                         "paths": [files for _, _, _, files in items]}
+    return {"splits": splits, "manifest_sha256": hashlib.sha256(raw).hexdigest(), "manifest_path": str(path.resolve()),
+            "n_samples": len(samples), "synthetic": bool(manifest.get("synthetic", True)),
+            "corpus_ids": sorted({k.split(":", 1)[0] for k in keys})}
+
+
+def _code_provenance() -> dict:
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    shas = {rel: _sha256_file(root / rel) for rel in _CODE_FILES if (root / rel).is_file()}
+    commit = dirty = None
+    try:
+        commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True,
+                                timeout=20, check=True).stdout.strip() or None
+        dirty = bool(subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+                                    capture_output=True, text=True, timeout=20, check=True).stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"code_commit": commit, "git_dirty": dirty, "code_sha256": shas}
+
+
+def _environment(device: torch.device) -> dict:
+    import platform
+    import sys
+    env = {"python": sys.version.split()[0], "platform": platform.platform(), "torch": str(torch.__version__),
+           "torch_cuda": torch.version.cuda, "cudnn": torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else None,
+           "cudnn_deterministic": torch.backends.cudnn.deterministic, "cudnn_benchmark": torch.backends.cudnn.benchmark,
+           "cpu_threads": torch.get_num_threads(), "device": str(device)}
+    for mod in ("numpy", "PIL"):
+        try:
+            env[mod] = __import__(mod).__version__
+        except Exception:  # noqa: BLE001 - environment report only
+            env[mod] = None
+    if device.type == "cuda":
+        props = torch.cuda.get_device_properties(device)
+        env.update({"gpu_name": props.name, "gpu_total_memory_bytes": int(props.total_memory),
+                    "gpu_capability": f"{props.major}.{props.minor}"})
+    return env
+
+
+def _write_json(path: Path, value) -> None:
+    import json
+    path.write_text(json.dumps(value, indent=1, allow_nan=False), encoding="utf-8")
+
+
+def evaluate_checkpoint(checkpoint, data: dict, components: DriverComponents, out_dir: Path,
+                        device: torch.device, config: CaseConfigV1 | None = None) -> dict:
+    """Load `checkpoint` and run export_run for every val and test quartet; aggregate the 8 metrics.
+
+    Selection is never made here: test is a single held-out report of the given checkpoint.
+    """
+    import json
+    import numpy as np
+    from PIL import Image
+    config = config or CaseConfigV1()
+    model, payload = load_checkpoint(checkpoint)
+    model = model.to(device)
+    metadata = checkpoint_metadata(payload)
+    summary = {"checkpoint": str(Path(checkpoint).resolve()), "checkpoint_sha256": payload["sha256"],
+               "checkpoint_kind": (payload.get("extra") or {}).get("kind"), "manifest_sha256": data["manifest_sha256"],
+               "evaluation": "export_run per quartet: phase -> DOE.png -> reload -> 4 Fresnel -> 4 PNG -> reload -> Pearson/SSIM",
+               "test_note": "held-out report only; never used for checkpoint or loss selection"}
+    for split in ("val", "test"):
+        part = data["splits"][split]
+        phase = infer_phase(model, part["targets"].to(device)).cpu()
+        P, S, lit, tlit, peak = [], [], [], [], []
+        for i, (key, files) in enumerate(zip(part["ids"], part["paths"])):
+            run = out_dir / "export" / split / f"{i:03d}"
+            run.parent.mkdir(parents=True, exist_ok=True)
+            components.export_run(files, phase[i:i + 1], run, synthetic_test=data["synthetic"],
+                                  metadata={**metadata, "sample_key": key, "origin_id": part["origins"][i],
+                                            "split": split, "manifest_sha256": data["manifest_sha256"]})
+            planes = json.loads((run / "metrics.json").read_text(encoding="utf-8"))["planes"]
+            P.append([p["pearson"] if p.get("pearson_defined") else np.nan for p in planes])
+            S.append([p["ssim"] for p in planes])
+            rec = np.stack([np.array(Image.open(run / f"reconstructed_{k:02d}.png")) for k in range(1, 5)]) / 255.0
+            tgt = part["targets"][i, :, 0].double().numpy()
+            lit.append((rec > 0.5).mean(axis=(1, 2)))
+            tlit.append((tgt > 0.5).mean(axis=(1, 2)))
+            amp = np.load(run / "raw.npz")["amplitude_quantized"].reshape(4, -1).astype(np.float64)
+            peak.append(amp.max(1) ** 2 / (amp ** 2).sum(1))
+        P, S = np.array(P, dtype=float), np.array(S, dtype=float)
+        pp, sp = np.nanmean(P, 0), S.mean(0)
+        lit_frac, target_lit = float(np.mean(lit)), float(np.mean(tlit))
+        summary[split] = {
+            "n": len(part["ids"]), "pearson_plane": [_finite_or_none(v) for v in pp], "ssim_plane": sp.tolist(),
+            "pearson_mean": _finite_or_none(np.nanmean(P)), "ssim_mean": float(S.mean()),
+            "worst_plane_pearson": _finite_or_none(np.nanmin(pp)), "worst_plane_ssim": float(sp.min()),
+            "worst_pair_pearson": _finite_or_none(np.nanmin(P)), "undefined_pearson": int(np.isnan(P).sum()),
+            "lit_frac": lit_frac, "target_lit_frac": target_lit, "peak_pixel_power_frac": float(np.mean(peak)),
+            "collapse": bool(lit_frac < 0.2 * target_lit or not (np.nanmean(P) >= 0.05)),
+            "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"}
+    return summary
+
+
+def _parser():
+    import argparse
+    ap = argparse.ArgumentParser(prog="python -m doe_models.train_multiplane",
+                                 description="Train FourInputUNet on a doe_training_manifest_v1 (one continuous run).")
+    ap.add_argument("--manifest", required=True, type=Path)
+    ap.add_argument("--out-dir", required=True, type=Path, help="new directory; an existing one is refused")
+    ap.add_argument("--device", default="cuda", choices=("cuda", "cpu"))
+    ap.add_argument("--updates", type=int, default=1000)
+    ap.add_argument("--eval-every", type=int, default=100, help="validation AND periodic checkpoint interval")
+    ap.add_argument("--batch-size", type=int, default=4)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--base-channels", type=int, default=16)
+    ap.add_argument("--depth", type=int, default=3)
+    ap.add_argument("--objective", default=LSQ_MIX_OBJECTIVE, choices=TRAINING_OBJECTIVES)
+    ap.add_argument("--threads", type=int, default=None)
+    ap.add_argument("--smoke-steps", type=int, default=0, help="only time K real train steps; no checkpoints")
+    ap.add_argument("--evaluate-checkpoint", type=Path, default=None,
+                    help="only evaluate this checkpoint on val+test through export_run")
+    ap.add_argument("--no-eval", action="store_true", help="skip the final new-process evaluation")
+    return ap
+
+
+def main(argv=None, components: DriverComponents | None = None) -> int:
+    """Entrypoint. `components` is for tests; by default the project's real modules are used."""
+    import subprocess
+    import sys
+    args = _parser().parse_args(argv)
+    injected = components is not None
+    if args.threads:
+        torch.set_num_threads(args.threads)
+    device = torch.device(args.device)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested (--device cuda) but torch.cuda.is_available() is False")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    components = components or production_components()
+    config = CaseConfigV1()
+    out = Path(args.out_dir)
+    out.mkdir(parents=True, exist_ok=False)                       # never overwrite an earlier run
+    data = load_manifest(args.manifest, load_quartet=components.load_quartet)
+    env = _environment(device)
+    _write_json(out / "environment.json", env)
+
+    if args.evaluate_checkpoint is not None:
+        _write_json(out / "eval_summary.json",
+                    evaluate_checkpoint(args.evaluate_checkpoint, data, components, out, device, config))
+        return 0
+
+    sp = data["splits"]
+    run_config = {
+        "driver": "python -m doe_models.train_multiplane", "argv": list(argv) if argv is not None else sys.argv[1:],
+        "training_objective": args.objective, "updates": args.updates, "eval_every": args.eval_every,
+        "checkpoint_every": args.eval_every, "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed,
+        "hparams": {"base_channels": args.base_channels, "depth": args.depth}, "optimizer": "Adam (defaults)",
+        "precision": "float32", "amp": False, "selection": "best validation objective (same as training objective)",
+        "checkpoints": "weights only, NOT resumable (no optimizer/RNG state)", "smoke_steps": args.smoke_steps,
+        "manifest_sha256": data["manifest_sha256"], "manifest_path": data["manifest_path"],
+        "split_sizes": {k: len(v["ids"]) for k, v in sp.items()}, "corpus_ids": data["corpus_ids"],
+        "synthetic": data["synthetic"], "contract_version": CONTRACT_VERSION_V1, **_code_provenance()}
+    _write_json(out / "run_config.json", run_config)
+
+    train, val = sp["train"]["targets"].to(device), sp["val"]["targets"].to(device)
+    model = build_model(seed=args.seed, base_channels=args.base_channels, depth=args.depth).to(device)
+    _check_device(model, train, val)
+    common = dict(config=config, propagate_fn=components.propagate, lr=args.lr, batch_size=args.batch_size,
+                  seed=args.seed, training_objective=args.objective)
+
+    if args.smoke_steps:
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+        log = train_multiplane(model, train, steps=args.smoke_steps, **common)
+        times = [h["step_s"] for h in log["history"]]
+        steady = times[1:] or times
+        _write_json(out / "smoke.json", {
+            "steps": args.smoke_steps, "device": str(device), "s_per_step": sum(steady) / len(steady),
+            "first_step_s": times[0], "step_s": times, "objective_first_last": [log["history"][0]["objective"],
+                                                                                  log["history"][-1]["objective"]],
+            "peak_memory_bytes": int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else None,
+            "timing": "per optimizer update incl. forward/backward/step; cuda synchronized", **env})
+        return 0
+
+    ckdir = out / "checkpoints"
+    ckdir.mkdir()
+    run_config_sha = _sha256_file(out / "run_config.json")
+
+    def extra(kind: str, step: int) -> dict:
+        return {"kind": kind, "step": step, "resumable": False, "note": "weights only; not a resumable training state",
+                "manifest_sha256": data["manifest_sha256"], "run_config_sha256": run_config_sha}
+
+    def on_validate(step, m, entry, is_best, is_last):
+        partial = {"partial": True, "step": step, "val_entry": entry, "training_objective": args.objective}
+        if step > 0:
+            save_checkpoint(ckdir / f"step_{step:06d}.pt", m, config=config, train_log=partial,
+                            code_commit=run_config["code_commit"], extra=extra("periodic", step))
+        if is_best:
+            save_checkpoint(ckdir / "best.pt", m, config=config, train_log=partial,
+                            code_commit=run_config["code_commit"], extra=extra("best", step))
+        if is_last:
+            save_checkpoint(ckdir / "last.pt", m, config=config, train_log=partial,
+                            code_commit=run_config["code_commit"], extra=extra("last", step))
+
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+    log = train_multiplane(model, train, steps=args.updates, val_targets=val, eval_every=args.eval_every,
+                           train_ids=sp["train"]["ids"], val_ids=sp["val"]["ids"], test_ids=sp["test"]["ids"],
+                           val_metrics_fn=components.val_metrics, on_validate=on_validate, **common)
+    # the model now holds the best-validation weights: rewrite best.pt with the complete log
+    best_sha = save_checkpoint(ckdir / "best.pt", model, config=config, train_log=log,
+                               code_commit=run_config["code_commit"], extra=extra("best", log["best_step"]))
+    log["peak_memory_bytes"] = int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else None
+    log["checkpoints"] = {p.name: _sha256_file(p) for p in sorted(ckdir.glob("*.pt"))}
+    log["best_checkpoint_sha256"] = best_sha
+    _write_json(out / "train_log.json", log)
+
+    if not args.no_eval:
+        best = ckdir / "best.pt"
+        if injected:
+            summary = evaluate_checkpoint(best, data, components, out / "eval_best", device, config)
+        else:   # production: a NEW Python process loads the checkpoint (weights_only) and exports
+            subprocess.run([sys.executable, "-m", "doe_models.train_multiplane", "--manifest", str(args.manifest),
+                            "--out-dir", str(out / "eval_best"), "--device", args.device,
+                            "--evaluate-checkpoint", str(best)], check=True)
+            import json
+            summary = json.loads((out / "eval_best" / "eval_summary.json").read_text(encoding="utf-8"))
+        _write_json(out / "eval_summary.json", summary)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
