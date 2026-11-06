@@ -106,3 +106,55 @@
 ## Синхронизация с PR #15
 
 Во время работы опубликован [PR #15](https://github.com/NinjaMoons/nuclear-doe-2026/pull/15), head e3b25437b2bbd293109f8515a796a69246da9e6d. INTERFACES_V1 уже предлагает формы, output_pitches, A=1, per-plane max display/MSE, global SSIM и повторное чтение PNG8. Это PROPOSED, а не согласованный контракт. R-002 не создаёт альтернативный v1: Gemini A адресно проверяет предложенный loss/display, B — ещё открытые continuous/sampling границы. Общие файлы не менялись.
+
+## Проверка новых A/B (промежуточный документ B)
+
+### R-002-E08
+- ID исследования: R-002.
+- Утверждение: Ожидаемый результат MRE Gemini A (max ~1e4, mean ~1) неверен; это не основание менять v1 loss.
+- Доказательство/источник: Для его n=16384, один peak100, background1 и T=.5 аналитический gradient+NumPy central difference: ratio peak/mean_abs_all=162.2178218 для ОБОИХ; peak/background=163.83 для обоих; max abs finite-difference error4.486e-13. Python3.12.14/NumPy2.3.5. Не literal torch и не phase training.
+- Достоверность: REJECTED прогноз A; CONFIRMED ограниченный counterexample. Реальная сходимость max-vs-mean NEEDS_TEST.
+- Применимость: официальный one-DOE/four-plane Fresnel, без изменения обязательного forward.
+- Конкретное действие: Сохранить согласуемый v1 baseline; возможную loss ablation выполнять отдельно на общем Fresnel/phase и одинаковом eval, после согласования, без замены API.
+- Ответственный: playerr456.
+- GitHub Issue: #3.
+- Критерий проверки: Если нужна ablation: одинаковые quartet/seed/steps/forward/PNG eval, finite gradients и per-plane качества. Не использовать arbitrary ratio>100 как pass/fail.
+- Приоритет: P0.
+
+### R-002-E09
+- ID исследования: R-002.
+- Утверждение: Каркас B не является готовой заменой #14: проза ortho-нормировки, точный inverse и complex128 имеют дефекты.
+- Доказательство/источник: В текстовой формуле dx²+ortho потерян sqrt(HW); в коде scale=N уже добавлен. inverse удаляет только angle(chirp_out), не его modulus; chirps заранее cast complex64. zcrit проверяет лишь input chirp, не полную continuous достоверность.
+- Достоверность: REJECTED соответствующие гарантии B; existing project implementation NEEDS_TEST отдельно.
+- Применимость: официальный one-DOE/four-plane Fresnel, без изменения обязательного forward.
+- Конкретное действие: Не копировать целиком каркас. Сохранить API v1; использовать direct-sum/power/gradient tests. Exact inverse сейчас не требуется основному пути.
+- Ответственный: ggmaster913.
+- GitHub Issue: #14.
+- Критерий проверки: Area-weighted power, independent complex direct sum; double chirps строить заново. Если когда-либо нужен inverse — forward/inverse roundtrip complex field, без индивидуальной scale fit.
+- Приоритет: P0.
+
+### R-002-E10
+- ID исследования: R-002.
+- Утверждение: Нормировка двух выходных каналов перед atan2 не устраняет angular singularity; FNO/14 channels/unrolling не обязательны.
+- Доказательство/источник: atan2(v/s,u/s)=atan2(v,u) для общего s>0; (0,0) остаётся нулём и derivative ~1/r. Гарантий выигрыша/45min training/OOD в B нет. Supervised ambiguity не доказывает невозможность labels.
+- Достоверность: REJECTED исправление atan2 и универсальные гарантии; альтернативные архитектуры PLAUSIBLE/NEEDS_TEST.
+- Применимость: официальный one-DOE/four-plane Fresnel, без изменения обязательного forward.
+- Конкретное действие: Сначала минимальная сеть по текущему v1 и реальный training smoke. Не менять head/каналы/архитектуру по одному ответу Gemini; альтернативы P2 после benchmark.
+- Ответственный: playerr456.
+- GitHub Issue: #5.
+- Критерий проверки: Finite gradient weights, fixed seeds/held-out quartets/save-load/PNG path. Near-zero/tie tests лишь если такой head реально выбран.
+- Приоритет: P1.
+
+### R-002-E11
+- ID исследования: R-002.
+- Утверждение: Ни max-, ни mean-нормировка не сохраняет absolute scale; 99/1 распределение мощности между отдельными z неверно для полного заданного оператора.
+- Доказательство/источник: J(cI)=J(I) у обоих. Для полной single-FFT сетки sum(I_p)*dx_out_p*dy_out_p=P_in; z — последовательные сечения одного поля. Raw sum(I_p) зависит от1/z², не full-power loss.
+- Достоверность: CONFIRMED math invariance/power с условиями; REJECTED energy-allocation объяснение A.
+- Применимость: официальный one-DOE/four-plane Fresnel, без изменения обязательного forward.
+- Конкретное действие: Сохранять raw intensity и отдельные power/ROI checks; per-plane Pearson/SSIM по общей display policy. Не вводить target-fitted LS scaling из B в eval без согласования #1.
+- Ответственный: MVRto01.
+- GitHub Issue: #4.
+- Критерий проверки: Площади всех4сеток в power test, одинаковый eval preprocessing, float/PNG8 протокол отдельно; не нормировать reference к target для скрытия ошибок.
+- Приоритет: P0.
+
+Передачи: [#3](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3#issuecomment-6691097004), [#14](https://github.com/NinjaMoons/nuclear-doe-2026/issues/14#issuecomment-6691097481), [#5](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5#issuecomment-6691097904), [#4](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4#issuecomment-6691098663).
