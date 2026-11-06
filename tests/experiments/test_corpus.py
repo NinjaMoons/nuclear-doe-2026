@@ -233,3 +233,125 @@ def test_cli_validate_and_error_exit(pilot, tmp_path, capsys):
     assert corpus.main(["validate", "--manifest", str(pilot), "--skip-a-regeneration"]) == 0
     assert json.loads(capsys.readouterr().out)["samples"] == 128
     assert corpus.main(["validate", "--manifest", str(tmp_path / "missing.json")]) == 2
+
+
+# --------------------------------------------------------------------------- train-only expansion
+
+@pytest.fixture(scope="module")
+def expanded(pilot, tmp_path_factory) -> tuple[Path, Path, str]:
+    root = tmp_path_factory.mktemp("expanded") / "c"
+    shutil.copytree(pilot.parent, root)
+    pilot_copy = root / "manifest.json"
+    before = corpus.file_sha256(pilot_copy)
+    return corpus.expand_corpus(pilot_copy, seed=0), pilot_copy, before
+
+
+def _expanded_manifest(expanded) -> dict:
+    return json.loads(expanded[0].read_text(encoding="utf-8"))
+
+
+def test_expansion_counts_and_train_only(expanded):
+    data = _expanded_manifest(expanded)
+    assert data["synthetic"] is True and data["expansion"]["train_only"] is True
+    counts = {(s["kind"], s["split"]): 0 for s in data["samples"]}
+    for s in data["samples"]:
+        counts[(s["kind"], s["split"])] += 1
+    assert counts == {("A", "train"): 256, ("A", "val"): 8, ("A", "test"): 8,
+                      ("B", "train"): 256, ("B", "val"): 8, ("B", "test"): 8}
+    added = [s for s in data["samples"] if s["corpus_id"] in ("A208", "B208")]
+    assert len(added) == 416 and {s["split"] for s in added} == {"train"}
+    assert all(len(s["pixel_sha256"]) == 4 for s in added)
+    families = [s["origin_phase"]["family"] for s in added if s["kind"] == "A"]
+    assert {f: families.count(f) for f in set(families)} == dict(corpus.A_EXT_PLAN)
+    relations = [s["procedural"]["relation"] for s in added if s["kind"] == "B"]
+    assert {r: relations.count(r) for r in set(relations)} == {"independent": 70, "similar": 69, "partial": 69}
+
+
+def test_expansion_preserves_pilot_and_holdouts(expanded, manifest):
+    expanded_path, pilot_copy, before = expanded
+    assert corpus.file_sha256(pilot_copy) == before  # pilot manifest not rewritten
+    data = _expanded_manifest(expanded)
+    by_key = {s["key"]: s for s in data["samples"]}
+    assert all(by_key[s["key"]] == s for s in manifest["samples"])
+    assert data["splits"]["val"] == manifest["splits"]["val"]
+    assert data["splits"]["test"] == manifest["splits"]["test"]
+    assert data["expansion"]["pilot_content_sha256"] == manifest["content_sha256"]
+    report = corpus.validate_expanded(expanded_path, pilot_copy)
+    assert report["samples"] == 544 and report["added"] == 416
+
+
+def test_expansion_adapter_gives_512_16_16(expanded):
+    splits = corpus.load_training_splits(expanded[0])
+    assert {n: s.targets.shape[0] for n, s in splits.items()} == {"train": 512, "val": 16, "test": 16}
+
+
+def test_expansion_is_deterministic_and_independent_of_count(pilot, tmp_path):
+    made = {}
+    for name, counts in (("a", (6, 6)), ("b", (6, 6)), ("c", (8, 8))):
+        root = tmp_path / name
+        shutil.copytree(pilot.parent, root)
+        made[name] = {s["key"]: s for s in json.loads(corpus.expand_corpus(
+            root / "manifest.json", seed=0, counts=counts).read_text())["samples"]}
+    strip = lambda s: (s["split"], s["sha256"], s.get("doe_sha256"), s.get("pixel_sha256"))
+    assert {k: strip(v) for k, v in made["a"].items()} == {k: strip(v) for k, v in made["b"].items()}
+    for index in range(6):  # B sample i does not depend on how many samples are generated
+        key = f"B208:{index:03d}"
+        assert strip(made["a"][key]) == strip(made["c"][key])
+
+
+def test_expansion_refuses_overwrite(expanded):
+    with pytest.raises(ValueError, match="overwrite"):
+        corpus.expand_corpus(expanded[1], seed=0)
+
+
+def test_copied_quartet_with_new_ids_in_test_is_detected(expanded, tmp_path):
+    root = tmp_path / "leak"
+    shutil.copytree(expanded[0].parent, root)
+    path = root / corpus.EXPANDED_MANIFEST
+    data = json.loads(path.read_text())
+    source = next(s for s in data["samples"] if s["key"] == "B208:010")
+    new_paths, new_hashes = [], []
+    for index, rel in enumerate(source["paths"]):
+        target = root / "smuggled" / f"plane{index}.png"
+        target.parent.mkdir(exist_ok=True)
+        image = Image.open(root / rel)
+        from PIL import PngImagePlugin
+        info = PngImagePlugin.PngInfo()
+        info.add_text("comment", "different metadata, same pixels")
+        image.save(target, pnginfo=info)
+        new_paths.append(f"smuggled/plane{index}.png")
+        new_hashes.append(corpus.file_sha256(target))
+    assert new_hashes != source["sha256"]  # file hashes differ, decoded pixels are identical
+    clone = {**source, "corpus_id": "SMUG", "local_sample_id": "000", "key": "SMUG:000",
+             "origin_id": "SMUG:origin-000", "split": "test", "paths": new_paths, "sha256": new_hashes,
+             "quartet_sha256": __import__("hashlib").sha256("".join(new_hashes).encode()).hexdigest()}
+    data["samples"].append(clone)
+    data["splits"]["test"].append("SMUG:000")
+    data["content_sha256"] = corpus.content_sha256(data["samples"])
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="duplicate decoded quartet"):
+        corpus.validate_corpus(path, check_a_regeneration=False)
+
+
+def test_constant_b_plane_is_rejected(pilot, tmp_path):
+    copy = _copy(pilot, tmp_path)
+    data = json.loads(copy.read_text())
+    sample = next(s for s in data["samples"] if s["kind"] == "B")
+    target = copy.parent / sample["paths"][1]
+    target.unlink()
+    Image.fromarray(np.full((128, 128), 77, np.uint8)).save(target)
+    sample["sha256"][1] = corpus.file_sha256(target)
+    sample["quartet_sha256"] = __import__("hashlib").sha256("".join(sample["sha256"]).encode()).hexdigest()
+    data["content_sha256"] = corpus.content_sha256(data["samples"])
+    copy.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="constant"):
+        corpus.validate_corpus(copy, check_a_regeneration=False)
+
+
+def test_diversity_report_groups(expanded):
+    report = corpus.diversity_report(expanded[0])
+    assert sum(g["n"] for g in report.values()) == 544
+    assert {"A/smooth_correlated", "A/low_order", "A/structured_multiscale", "A/iid_random",
+            "B/independent", "B/similar", "B/partial"} <= set(report)
+    assert report["B/independent"]["interplane_pearson_mean"]["median"] < \
+        report["B/similar"]["interplane_pearson_mean"]["median"]

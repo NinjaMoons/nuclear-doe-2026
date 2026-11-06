@@ -13,9 +13,15 @@ in manifest.json. Physics, codec, PNG IO and display policy are imported, never
 re-implemented here. Data A is reachable for the discrete operator only; this is not
 a statement about a physical bench.
 
+Train-only expansion (+208 A, +208 B -> 512/16/16) is written next to the pilot into
+manifest_expanded.json; pilot files, IDs, splits and its manifest stay unchanged.
+
 CLI:
     python -m doe_experiments.corpus generate --output-dir DIR [--seed 0]
+    python -m doe_experiments.corpus expand --pilot-manifest DIR/manifest.json [--seed 0]
     python -m doe_experiments.corpus validate --manifest DIR/manifest.json
+    python -m doe_experiments.corpus validate --manifest DIR/manifest_expanded.json --pilot-manifest DIR/manifest.json
+    python -m doe_experiments.corpus report --manifest DIR/manifest_expanded.json
 """
 from __future__ import annotations
 
@@ -42,8 +48,9 @@ from doe_experiments.phase_codec import load_doe_png, save_doe_png
 from doe_experiments.png_io import amplitude_to_u8, save_reconstructions
 from doe_models.adam_multiplane import multiplane_amplitudes
 
-__all__ = ["SCHEMA", "GENERATOR_VERSION", "CorpusSplit", "generate_corpus", "validate_corpus",
-           "load_split", "load_training_splits", "file_sha256", "content_sha256", "main"]
+__all__ = ["SCHEMA", "GENERATOR_VERSION", "CorpusSplit", "generate_corpus", "expand_corpus", "validate_corpus",
+           "validate_expanded", "diversity_report", "load_split", "load_training_splits", "file_sha256",
+           "content_sha256", "main"]
 
 SCHEMA = "doe_training_manifest_v1"
 GENERATOR_VERSION = "4b-pilot-1"
@@ -178,8 +185,9 @@ def _forward_from_doe(doe_path: Path, config: CaseConfigV1) -> tuple[torch.Tenso
     return phi_q, multiplane_amplitudes(phi_q, config, propagate_fresnel)
 
 
-def _make_a(sample_dir: Path, rng: np.random.Generator, family: str, config: CaseConfigV1) -> dict:
-    origin, params = _origin_phase(rng, family)
+def _make_a(sample_dir: Path, rng: np.random.Generator, family: str, config: CaseConfigV1,
+            origin_fn=None) -> dict:
+    origin, params = (origin_fn or _origin_phase)(rng, family)
     sample_dir.mkdir(parents=True, exist_ok=False)
     origin_path = sample_dir / "origin_phase.npy"
     with origin_path.open("xb") as stream:
@@ -339,6 +347,74 @@ def _rel(path: Path, root: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
+def _base_entry(corpus_id: str, local: str, origin_id: str, split: str, kind: str, spawn_key: list) -> dict:
+    return {"corpus_id": corpus_id, "local_sample_id": local, "key": f"{corpus_id}:{local}",
+            "origin_id": origin_id, "split": split, "kind": kind, "synthetic": True, "seed_spawn_key": spawn_key}
+
+
+def _finish_paths(entry: dict, root: Path, paths: Sequence[Path]) -> None:
+    entry["paths"] = [_rel(p, root) for p in paths]
+    entry["sha256"] = [file_sha256(p) for p in paths]
+    entry["quartet_sha256"] = hashlib.sha256("".join(entry["sha256"]).encode()).hexdigest()
+
+
+def _finish_a(entry: dict, root: Path, made: dict, family: str) -> None:
+    entry.update({
+        "doe_path": _rel(made["doe_path"], root), "doe_sha256": file_sha256(made["doe_path"]),
+        "phase_label": {"source": "decoded DOE.png (phi_q)", "path": _rel(made["doe_path"], root),
+                        "codec": "doe_experiments.phase_codec v1 (q/255)"},
+        "origin_phase": {"role": "provenance_only", "family": family, "params": made["origin_params"],
+                         "path": _rel(made["origin_path"], root), "sha256": file_sha256(made["origin_path"]),
+                         "max_abs_wrapped_decode_error_rad": made["quant_error"]},
+        "raw_amplitude_max": made["raw_amplitude_max"],
+        "exposure": [1.0 / m for m in made["raw_amplitude_max"]]})
+    _finish_paths(entry, root, made["paths"])
+
+
+def _finish_b(entry: dict, root: Path, made: dict) -> None:
+    entry.update({"phase_label": None, "doe_path": None,
+                  "procedural": {k: v for k, v in made.items() if k != "paths"}})
+    _finish_paths(entry, root, made["paths"])
+
+
+def _manifest(samples: list, *, seed: int, config: CaseConfigV1, command: str, corpora: dict,
+              extra: dict | None = None) -> dict:
+    manifest = {
+        "schema": SCHEMA, "contract_version": CONTRACT_VERSION_V1, "observation": OBSERVATION_V1,
+        "status": "DATA_CANDIDATE", "generator": {"module": "doe_experiments.corpus", "version": GENERATOR_VERSION,
+                                                  **_git_state(), "command": command},
+        "seed": seed, "environment": _environment(),
+        "case_config": {"wavelength_m": config.wavelength_m, "input_pitch_m": list(config.input_pitch_m),
+                        "distances_m": list(config.distances_m), "image_shape": list(config.image_shape),
+                        "output_pitch_m": [list(config.plane(i).output_pitch_m(SIZE, SIZE)) for i in range(4)],
+                        "illumination": "uniform A=1, U=exp(i*phi_q)"},
+        "plane_order": ["z1", "z2", "z3", "z4"],
+        "reconstruction_policy": RECONSTRUCTION_POLICY_V1,
+        "io": {"png_writer": "doe_experiments.png_io.save_reconstructions (file names reconstructed_01..04.png)",
+               "png_loader": "doe_experiments.data.load_png_quartet",
+               "a_forward": "doe_models.adam_multiplane.multiplane_amplitudes + doe_core.fresnel.propagate_fresnel"},
+        "corpora": {cid: {"kind": kind, "count": sum(1 for e in samples if e["corpus_id"] == cid),
+                          "split_counts": {s: sum(1 for e in samples if e["corpus_id"] == cid and e["split"] == s)
+                                           for s in SPLITS}}
+                    for cid, kind in corpora.items()},
+        "splits": {s: [e["key"] for e in samples if e["split"] == s] for s in SPLITS},
+        "notes": ["A is reachable by the discrete single-FFT operator; not evidence about a physical bench.",
+                  "B has no phase ground truth; do not train phase-supervised on B.",
+                  "Split was assigned per origin_id before rendering; every origin has exactly one sample.",
+                  "Byte-identical regeneration is verified on one platform; compare other machines via sha256."],
+    }
+    manifest.update(extra or {})
+    manifest["content_sha256"] = content_sha256(samples)
+    manifest["samples"] = samples
+    return manifest
+
+
+def _write_manifest(path: Path, manifest: dict) -> None:
+    with path.open("x", encoding="utf-8") as stream:
+        json.dump(manifest, stream, indent=1, sort_keys=False, allow_nan=False)
+        stream.write("\n")
+
+
 def generate_corpus(output_dir: str | Path, *, seed: int = 0, counts: Sequence[int] = DEFAULT_COUNTS,
                     split_sizes: Sequence[int] = DEFAULT_SPLIT_SIZES) -> Path:
     """Generate the pilot into a NEW/empty directory and return the manifest path."""
@@ -360,63 +436,302 @@ def generate_corpus(output_dir: str | Path, *, seed: int = 0, counts: Sequence[i
             local = f"{index:03d}"
             rng = _rng(seed, corpus_index, index)
             sample_dir = root / corpus_id / local
-            entry = {"corpus_id": corpus_id, "local_sample_id": local, "key": f"{corpus_id}:{local}",
-                     "origin_id": f"{corpus_id}:origin-{local}", "split": labels[index], "kind": kind,
-                     "synthetic": True, "seed_spawn_key": [seed, corpus_index, index]}
+            entry = _base_entry(corpus_id, local, f"{corpus_id}:origin-{local}", labels[index], kind,
+                                [seed, corpus_index, index])
             if kind == "A":
                 family = A_PHASE_FAMILIES[index % len(A_PHASE_FAMILIES)]
-                made = _make_a(sample_dir, rng, family, config)
-                entry.update({
-                    "doe_path": _rel(made["doe_path"], root), "doe_sha256": file_sha256(made["doe_path"]),
-                    "phase_label": {"source": "decoded DOE.png (phi_q)", "path": _rel(made["doe_path"], root),
-                                    "codec": "doe_experiments.phase_codec v1 (q/255)"},
-                    "origin_phase": {"role": "provenance_only", "family": family, "params": made["origin_params"],
-                                     "path": _rel(made["origin_path"], root),
-                                     "sha256": file_sha256(made["origin_path"]),
-                                     "max_abs_wrapped_decode_error_rad": made["quant_error"]},
-                    "raw_amplitude_max": made["raw_amplitude_max"],
-                    "exposure": [1.0 / m for m in made["raw_amplitude_max"]]})
+                _finish_a(entry, root, _make_a(sample_dir, rng, family, config), family)
             else:
-                made = _make_b(sample_dir, rng)
-                entry.update({"phase_label": None, "doe_path": None,
-                              "procedural": {"families": made["families"], "params": made["params"]}})
-            entry["paths"] = [_rel(p, root) for p in made["paths"]]
-            entry["sha256"] = [file_sha256(p) for p in made["paths"]]
-            entry["quartet_sha256"] = hashlib.sha256("".join(entry["sha256"]).encode()).hexdigest()
+                _finish_b(entry, root, _make_b(sample_dir, rng))
             samples.append(entry)
-    manifest = {
-        "schema": SCHEMA, "contract_version": CONTRACT_VERSION_V1, "observation": OBSERVATION_V1,
-        "status": "DATA_CANDIDATE", "generator": {"module": "doe_experiments.corpus", "version": GENERATOR_VERSION,
-                                                  **_git_state(),
-                                                  "command": f"python -m doe_experiments.corpus generate --output-dir <DIR> --seed {seed}"},
-        "seed": seed, "environment": _environment(),
-        "case_config": {"wavelength_m": config.wavelength_m, "input_pitch_m": list(config.input_pitch_m),
-                        "distances_m": list(config.distances_m), "image_shape": list(config.image_shape),
-                        "output_pitch_m": [list(config.plane(i).output_pitch_m(SIZE, SIZE)) for i in range(4)],
-                        "illumination": "uniform A=1, U=exp(i*phi_q)"},
-        "plane_order": ["z1", "z2", "z3", "z4"],
-        "reconstruction_policy": RECONSTRUCTION_POLICY_V1,
-        "io": {"png_writer": "doe_experiments.png_io.save_reconstructions (file names reconstructed_01..04.png)",
-               "png_loader": "doe_experiments.data.load_png_quartet",
-               "a_forward": "doe_models.adam_multiplane.multiplane_amplitudes + doe_core.fresnel.propagate_fresnel"},
-        "corpora": {cid: {"kind": kind, "count": count,
-                          "split_counts": {s: sum(1 for e in samples if e["corpus_id"] == cid and e["split"] == s)
-                                           for s in SPLITS}}
-                    for (cid, kind), count in zip(CORPORA, counts)},
-        "splits": {s: [e["key"] for e in samples if e["split"] == s] for s in SPLITS},
-        "notes": ["A is reachable by the discrete single-FFT operator; not evidence about a physical bench.",
-                  "B has no phase ground truth; do not train phase-supervised on B.",
-                  "Split was assigned per origin_id before rendering; every origin has exactly one sample.",
-                  "Byte-identical regeneration is verified on one platform; compare other machines via sha256."],
-        "content_sha256": content_sha256(samples),
-        "samples": samples,
-    }
+    manifest = _manifest(samples, seed=seed, config=config,
+                         command=f"python -m doe_experiments.corpus generate --output-dir <DIR> --seed {seed}",
+                         corpora={cid: kind for cid, kind in CORPORA})
     manifest_path = root / "manifest.json"
-    with manifest_path.open("x", encoding="utf-8") as stream:
-        json.dump(manifest, stream, indent=1, sort_keys=False, allow_nan=False)
-        stream.write("\n")
+    _write_manifest(manifest_path, manifest)
     validate_corpus(manifest_path)
     return manifest_path
+
+
+# --------------------------------------------------------------------------- train-only expansion
+
+EXPANSION_VERSION = "4b-expansion-1"
+EXPANSION_CORPORA = (("A208", "A"), ("B208", "B"))
+DEFAULT_EXPANSION_COUNTS = (208, 208)
+# Engineering start mix for A (#4 comment 6696530669): ~35/30/25/10 %.
+A_EXT_PLAN = (("smooth_correlated", 73), ("low_order", 62), ("structured_multiscale", 52), ("iid_random", 21))
+B_RELATIONS = ("independent", "similar", "partial")
+EXPANDED_MANIFEST = "manifest_expanded.json"
+
+
+def _plan_family(index: int, count: int) -> str:
+    """Family by index with the A_EXT_PLAN proportions scaled to `count` (deterministic, order-free)."""
+    total = sum(n for _, n in A_EXT_PLAN)
+    bounds, acc = [], 0
+    for name, n in A_EXT_PLAN:
+        acc += n
+        bounds.append((round(acc * count / total), name))
+    for bound, name in bounds:
+        if index < bound:
+            return name
+    return A_EXT_PLAN[-1][0]
+
+
+def _rotated_lowpass(rng: np.random.Generator, cy: float, cx: float, angle: float) -> np.ndarray:
+    white = rng.standard_normal((SIZE, SIZE))
+    fy = np.fft.fftfreq(SIZE)[:, None]
+    fx = np.fft.fftfreq(SIZE)[None, :]
+    u = math.cos(angle) * fx + math.sin(angle) * fy
+    v = -math.sin(angle) * fx + math.cos(angle) * fy
+    field = np.fft.ifft2(np.fft.fft2(white) * np.exp(-(u**2 / (2 * cx**2) + v**2 / (2 * cy**2)))).real
+    return (field - field.mean()) / max(field.std(), 1e-12)
+
+
+def _origin_phase_ext(rng: np.random.Generator, family: str) -> tuple[np.ndarray, dict]:
+    """Expansion A recipes; smoothing is applied to the UNWRAPPED phase, wrap is the last step."""
+    y, x = _grid()
+    if family == "smooth_correlated":
+        cy, cx = (float(v) for v in rng.uniform(0.003, 0.03, 2))
+        angle = float(rng.uniform(0, math.pi))
+        amplitude = float(rng.uniform(0.5, 3.5)) * math.pi
+        piston = float(rng.uniform(-math.pi, math.pi))
+        phase = piston + amplitude * _rotated_lowpass(rng, cy, cx, angle)
+        return _wrap(phase), {"cutoff_yx": [cy, cx], "angle_rad": angle, "amplitude_rad": amplitude,
+                              "piston_rad": piston}
+    if family == "low_order":
+        oy, ox = (float(v) for v in rng.uniform(-0.35, 0.35, 2))
+        yy, xx = y - oy, x - ox
+        terms = {"tilt_y": yy, "tilt_x": xx, "defocus": xx**2 + yy**2, "astig_0": xx**2 - yy**2,
+                 "astig_45": 2 * xx * yy, "cubic_x": xx**3, "cubic_y": yy**3}
+        chosen = [str(t) for t in rng.choice(list(terms), size=int(rng.integers(1, 4)), replace=False)]
+        scale = {"tilt_y": 40.0, "tilt_x": 40.0, "defocus": 60.0, "astig_0": 40.0, "astig_45": 40.0,
+                 "cubic_x": 40.0, "cubic_y": 40.0}
+        coeffs = {t: float(rng.uniform(-1, 1)) * scale[t] for t in chosen}
+        phase = sum(coeffs[t] * terms[t] for t in chosen)
+        return _wrap(phase), {"center_yx": [oy, ox], "coefficients_rad": coeffs}
+    if family == "structured_multiscale":
+        parts = [str(m) for m in rng.choice(["grating", "rings", "blocks"], size=int(rng.integers(1, 3)),
+                                              replace=False)]
+        phase = np.zeros((SIZE, SIZE))
+        info = []
+        for mode in parts:
+            depth = float(rng.uniform(0.5, 2.0)) * math.pi
+            if mode == "grating":
+                period = float(rng.uniform(4, 40))
+                angle = float(rng.uniform(0, math.pi))
+                coord = (math.cos(angle) * x + math.sin(angle) * y) * (SIZE / 2)
+                wave = np.sin(2 * math.pi * coord / period)
+                binary = bool(rng.random() < 0.5)
+                phase += depth * (np.sign(wave) if binary else wave) / 2
+                info.append({"mode": mode, "period_px": period, "angle_rad": angle, "binary": binary,
+                             "depth_rad": depth})
+            elif mode == "rings":
+                period = float(rng.uniform(6, 40))
+                cy0, cx0 = (float(v) for v in rng.uniform(-0.4, 0.4, 2))
+                radius = np.sqrt((x - cx0) ** 2 + (y - cy0) ** 2) * (SIZE / 2)
+                phase += depth * np.floor(radius / period) % 2
+                info.append({"mode": mode, "period_px": period, "center_yx": [cy0, cx0], "depth_rad": depth})
+            else:
+                block = int(rng.choice([4, 8, 16, 32]))
+                levels = rng.uniform(-depth / 2, depth / 2, (SIZE // block, SIZE // block))
+                phase += np.kron(levels, np.ones((block, block)))
+                info.append({"mode": mode, "block_px": block, "depth_rad": depth})
+        return _wrap(phase), {"parts": info}
+    if family == "iid_random":
+        block = int(rng.choice([1, 2]))
+        levels = rng.uniform(-math.pi, math.pi, (SIZE // block, SIZE // block))
+        return _wrap(np.kron(levels, np.ones((block, block)))), {"block_px": block}
+    raise ValueError(f"unknown expansion A family {family!r}")
+
+
+def _shifted(values: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    out = np.zeros_like(values)
+    ys, yd = (slice(0, SIZE - dy), slice(dy, SIZE)) if dy >= 0 else (slice(-dy, SIZE), slice(0, SIZE + dy))
+    xs, xd = (slice(0, SIZE - dx), slice(dx, SIZE)) if dx >= 0 else (slice(-dx, SIZE), slice(0, SIZE + dx))
+    out[yd, xd] = values[ys, xs]
+    return out
+
+
+def _render_b_ext(rng: np.random.Generator, family: str) -> tuple[np.ndarray, dict]:
+    if family != "stripes":
+        return _render_b(rng, family)
+    y, x = _grid()
+    angle = float(rng.uniform(0, math.pi))
+    period = float(rng.uniform(5, 40))
+    duty = float(rng.uniform(0.2, 0.7))
+    coord = (math.cos(angle) * x + math.sin(angle) * y) * (SIZE / 2) / period
+    values = ((coord - np.floor(coord)) < duty).astype(np.float64) * float(rng.uniform(0.5, 1.0))
+    return values, {"mode": "stripes", "period_px": period, "angle_rad": angle, "duty": duty}
+
+
+B_EXT_FAMILIES = B_FAMILIES + ("stripes",)
+
+
+def _good_plane(u8: np.ndarray) -> bool:
+    return int(u8.max()) >= 64 and float(u8.std()) >= 4.0
+
+
+def _draw_plane(rng: np.random.Generator) -> tuple[np.ndarray, str, dict]:
+    for _attempt in range(16):  # deterministic redraw of degenerate planes
+        family = B_EXT_FAMILIES[int(rng.integers(len(B_EXT_FAMILIES)))]
+        values, info = _render_b_ext(rng, family)
+        if _good_plane(_to_u8(values)):
+            return values, family, info
+    raise ValueError("could not render a non-degenerate B plane")
+
+
+def _make_b_ext(sample_dir: Path, rng: np.random.Generator, relation: str) -> dict:
+    """Quartet of four planes; all derivatives of one parent stay inside this one sample/origin."""
+    planes, families, params = [], [], []
+    if relation == "independent":
+        for _ in range(4):
+            values, family, info = _draw_plane(rng)
+            planes.append(values), families.append(family), params.append(info)
+    elif relation == "similar":
+        parent, family, info = _draw_plane(rng)
+        for plane in range(4):
+            for _attempt in range(16):
+                dy, dx = (int(v) for v in rng.integers(-12, 13, 2))
+                gain = float(rng.uniform(0.7, 1.0))
+                values = gain * _shifted(parent, dy, dx)
+                if _good_plane(_to_u8(values)):
+                    break
+            else:
+                raise ValueError("could not derive a non-degenerate similar plane")
+            planes.append(values), families.append(family)
+            params.append({"parent": info, "shift_yx": [dy, dx], "gain": gain})
+    elif relation == "partial":
+        shared, shared_family, shared_info = _draw_plane(rng)
+        weight = float(rng.uniform(0.3, 0.7))
+        for plane in range(4):
+            own, family, info = _draw_plane(rng)
+            values = np.maximum(weight * shared, own)
+            planes.append(values), families.append(family)
+            params.append({"shared": shared_family, "shared_weight": weight, "own": info})
+        params.insert(0, {"shared_params": shared_info})
+    else:
+        raise ValueError(f"unknown B relation {relation!r}")
+    images = np.stack([_to_u8(v) for v in planes])
+    if any(not _good_plane(p) for p in images) or len({p.tobytes() for p in images}) < 4:
+        raise ValueError("degenerate or repeated plane inside one B quartet")
+    sample_dir.mkdir(parents=True, exist_ok=False)
+    paths = save_reconstructions(images[None, :, None], sample_dir)
+    return {"paths": paths, "relation": relation, "families": families, "params": params}
+
+
+def expand_corpus(pilot_manifest: str | Path, *, seed: int = 0,
+                  counts: Sequence[int] = DEFAULT_EXPANSION_COUNTS) -> Path:
+    """Add TRAIN-only A/B samples next to a validated pilot; write a separate expanded manifest.
+
+    The pilot manifest and every pilot file stay untouched; its entries are copied verbatim.
+    """
+    seed = _check_seed(seed)
+    if len(counts) != 2 or any(type(c) is not int or c < 1 for c in counts):
+        raise ValueError("expansion counts must be two positive ints (A, B)")
+    pilot_path = Path(pilot_manifest)
+    validate_corpus(pilot_path)
+    pilot, root = _read_manifest(pilot_path)
+    if any(s["corpus_id"] in dict(EXPANSION_CORPORA) for s in pilot["samples"]):
+        raise ValueError("pilot already contains expansion corpus IDs")
+    target = root / EXPANDED_MANIFEST
+    if target.exists() or any((root / cid).exists() for cid, _ in EXPANSION_CORPORA):
+        raise ValueError("expansion output already exists (no overwrite)")
+    config = CaseConfigV1()
+    samples = [dict(s) for s in pilot["samples"]]
+    for offset, ((corpus_id, kind), count) in enumerate(zip(EXPANSION_CORPORA, counts)):
+        corpus_index = 2 + offset  # disjoint SeedSequence space from the pilot (0, 1)
+        for index in range(count):
+            local = f"{index:03d}"
+            rng = _rng(seed, corpus_index, index)
+            entry = _base_entry(corpus_id, local, f"{corpus_id}:origin-{local}", "train", kind,
+                                [seed, corpus_index, index])
+            sample_dir = root / corpus_id / local
+            if kind == "A":
+                family = _plan_family(index, count)
+                _finish_a(entry, root, _make_a(sample_dir, rng, family, config, _origin_phase_ext), family)
+            else:
+                relation = B_RELATIONS[index % len(B_RELATIONS)]
+                _finish_b(entry, root, _make_b_ext(sample_dir, rng, relation))
+            entry["pixel_sha256"] = _pixel_hashes(root, entry["paths"])
+            samples.append(entry)
+    manifest = _manifest(
+        samples, seed=seed, config=config,
+        command=(f"python -m doe_experiments.corpus expand --pilot-manifest <DIR>/manifest.json --seed {seed}"),
+        corpora={**dict(CORPORA), **dict(EXPANSION_CORPORA)},
+        extra={"synthetic": True, "expansion": {
+            "version": EXPANSION_VERSION, "pilot_manifest": pilot_path.name,
+            "pilot_manifest_sha256": file_sha256(pilot_path),
+            "pilot_content_sha256": pilot["content_sha256"],
+            "train_only": True, "a_plan": dict(A_EXT_PLAN), "b_relations": list(B_RELATIONS)}})
+    _write_manifest(target, manifest)
+    validate_expanded(target, pilot_path)
+    return target
+
+
+def _pixel_hashes(root: Path, paths: Sequence[str]) -> list[str]:
+    out = []
+    for rel in paths:
+        with Image.open(_resolve(root, rel)) as image:
+            out.append(hashlib.sha256(np.asarray(image, dtype=np.uint8).tobytes()).hexdigest())
+    return out
+
+
+def validate_expanded(expanded_manifest: str | Path, pilot_manifest: str | Path) -> dict:
+    """Full validation plus: pilot entries verbatim, val/test identical to the pilot, additions train-only."""
+    report = validate_corpus(expanded_manifest)
+    expanded, _ = _read_manifest(expanded_manifest)
+    pilot, _ = _read_manifest(pilot_manifest)
+    by_key = {s["key"]: s for s in expanded["samples"]}
+    for sample in pilot["samples"]:
+        if by_key.get(sample["key"]) != sample:
+            raise ValueError(f"pilot sample {sample['key']} changed in the expanded manifest")
+    pilot_keys = {s["key"] for s in pilot["samples"]}
+    for split in ("val", "test"):
+        if expanded["splits"][split] != pilot["splits"][split]:
+            raise ValueError(f"{split} split differs from the pilot holdout")
+    added = [s for s in expanded["samples"] if s["key"] not in pilot_keys]
+    if any(s["split"] != "train" for s in added):
+        raise ValueError("expansion samples must all be train")
+    info = expanded.get("expansion") or {}
+    if info.get("pilot_content_sha256") != pilot.get("content_sha256"):
+        raise ValueError("expanded manifest does not reference this pilot content")
+    report["added"] = len(added)
+    return report
+
+
+def diversity_report(manifest_path: str | Path) -> dict:
+    """Compact per-(kind, family/relation) statistics of the stored target PNGs (no model, no test metrics)."""
+    manifest, root = _read_manifest(manifest_path)
+    freq = np.sqrt(np.fft.fftfreq(SIZE)[:, None] ** 2 + np.fft.fftfreq(SIZE)[None, :] ** 2)
+    groups: dict[str, list] = {}
+    for entry in manifest["samples"]:
+        if entry["kind"] == "A":
+            group = f"A/{entry['origin_phase']['family']}"
+        else:
+            group = f"B/{entry['procedural'].get('relation', 'pilot_independent')}"
+        planes = [np.asarray(Image.open(_resolve(root, p)), dtype=np.float64) / 255 for p in entry["paths"]]
+        stats = []
+        for plane in planes:
+            power = np.abs(np.fft.fft2(plane - plane.mean())) ** 2
+            centroid = float((freq * power).sum() / max(power.sum(), 1e-30))
+            stats.append([plane.mean(), plane.std(), (plane < 0.1).mean(), centroid])
+        corr = []
+        for i in range(4):
+            for j in range(i + 1, 4):
+                a, b = planes[i].ravel(), planes[j].ravel()
+                if a.std() > 0 and b.std() > 0:
+                    corr.append(float(np.corrcoef(a, b)[0, 1]))
+        groups.setdefault(group, []).append(list(np.mean(stats, axis=0)) + [float(np.mean(corr)) if corr else math.nan])
+    names = ("brightness_mean", "contrast_std", "dark_fraction_lt_0.1", "spectral_centroid_cyc_per_px",
+             "interplane_pearson_mean")
+    report = {}
+    for group, rows in sorted(groups.items()):
+        values = np.array(rows)
+        report[group] = {"n": len(rows), **{name: {"median": float(np.nanmedian(values[:, k])),
+                                                    "min": float(np.nanmin(values[:, k])),
+                                                    "max": float(np.nanmax(values[:, k]))}
+                                             for k, name in enumerate(names)}}
+    return report
 
 
 # --------------------------------------------------------------------------- validation / loading
@@ -467,7 +782,7 @@ def validate_corpus(manifest_path: str | Path, *, check_a_regeneration: bool = T
     """
     manifest, root = _read_manifest(manifest_path)
     samples = manifest["samples"]
-    keys, origin_split, quartets, file_owner = set(), {}, {}, {}
+    keys, origin_split, quartets, file_owner, decoded_quartets = set(), {}, {}, {}, {}
     config = CaseConfigV1()
     counts: dict[str, dict[str, int]] = {}
     for entry in samples:
@@ -497,11 +812,19 @@ def validate_corpus(manifest_path: str | Path, *, check_a_regeneration: bool = T
         if quartet in quartets:
             raise ValueError(f"duplicate quartet: {key} == {quartets[quartet]}")
         quartets[quartet] = key
-        for digest in hashes:
+        targets = load_png_quartet(files)  # strict 8-bit L 128x128 check by the #4A loader
+        pixels = np.rint(targets[0, :, 0].double().numpy() * 255).astype(np.uint8)
+        plane_digests = [hashlib.sha256(plane.tobytes()).hexdigest() for plane in pixels]
+        if "pixel_sha256" in entry and entry["pixel_sha256"] != plane_digests:
+            raise ValueError(f"{key}: pixel_sha256 does not match decoded PNG pixels")
+        decoded = hashlib.sha256(pixels.tobytes()).hexdigest()  # PNG metadata cannot hide a duplicate
+        if decoded in decoded_quartets:
+            raise ValueError(f"duplicate decoded quartet: {key} == {decoded_quartets[decoded]}")
+        decoded_quartets[decoded] = key
+        for digest in set(plane_digests):
             other = file_owner.setdefault(digest, origin)
             if other != origin and origin_split[other] != split:
-                raise ValueError(f"split leakage: identical PNG shared by {origin} and {other}")
-        targets = load_png_quartet(files)  # strict 8-bit L 128x128 check by the #4A loader
+                raise ValueError(f"split leakage: identical decoded plane shared by {origin} and {other}")
         if kind == "A":
             label = entry.get("phase_label")
             if not isinstance(label, dict) or label.get("path") != entry.get("doe_path"):
@@ -588,13 +911,28 @@ def main(argv: list[str] | None = None) -> int:
     gen.add_argument("--seed", type=int, default=0)
     val = sub.add_parser("validate", help="validate an existing corpus manifest")
     val.add_argument("--manifest", type=Path, required=True)
+    val.add_argument("--pilot-manifest", type=Path, help="also check pilot preservation (expanded manifest)")
     val.add_argument("--skip-a-regeneration", action="store_true")
+    exp = sub.add_parser("expand", help="add 208A+208B TRAIN-only samples next to a validated pilot")
+    exp.add_argument("--pilot-manifest", type=Path, required=True)
+    exp.add_argument("--seed", type=int, default=0)
+    rep = sub.add_parser("report", help="diversity summary of stored targets")
+    rep.add_argument("--manifest", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "generate":
             manifest_path = generate_corpus(args.output_dir, seed=args.seed)
             report = validate_corpus(manifest_path, check_a_regeneration=False)
             report["manifest"] = str(manifest_path)
+        elif args.command == "expand":
+            manifest_path = expand_corpus(args.pilot_manifest, seed=args.seed)
+            report = validate_corpus(manifest_path, check_a_regeneration=False)
+            report["manifest"] = str(manifest_path)
+        elif args.command == "report":
+            report = diversity_report(args.manifest)
+        elif args.pilot_manifest is not None:
+            report = validate_expanded(args.manifest, args.pilot_manifest)
+            report["manifest"] = str(args.manifest)
         else:
             report = validate_corpus(args.manifest, check_a_regeneration=not args.skip_a_regeneration)
             report["manifest"] = str(args.manifest)
