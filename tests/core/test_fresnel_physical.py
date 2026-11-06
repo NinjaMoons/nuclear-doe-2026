@@ -503,3 +503,153 @@ def test_figures():
         pytest.skip("set FRESNEL_FIGURES=<dir> to render the validation illustrations")
     for path in render_figures(out):
         print(path, hashlib.sha256(path.read_bytes()).hexdigest()[:16])
+
+
+# --- contract amplitude loss x single-FFT operator (#14B, independent analysis) ----------------
+#
+# Independent of #3/#5 code: the v1.1 training loss is re-stated here from the contract text,
+#   L_c = mean((A/max(A) - T)^2), max per plane,
+# and a minimal own phase optimiser (torch.optim.Adam on the phase) is used only for diagnostics.
+# Facts proven below are exact identities; the optional study prints numbers for the report:
+#   FRESNEL_LOSS_STUDY=1 python -m pytest tests/core/test_fresnel_physical.py -k loss_operator_study -s
+
+
+def _contract_loss(a, t):
+    return ((a / a.amax(dim=(-2, -1), keepdim=True) - t) ** 2).mean()
+
+
+def _lsq_gain_nmse(a, t):
+    cos = (a * t).sum((-2, -1)) / (a.norm(dim=(-2, -1)) * t.norm(dim=(-2, -1)))
+    return (1 - cos**2).mean()
+
+
+def _one_minus_pearson(a, t):
+    return (1 - _pearson(a, t)).mean()
+
+
+def _pearson(a, t):
+    ac, tc = a - a.mean((-2, -1), keepdim=True), t - t.mean((-2, -1), keepdim=True)
+    return (ac * tc).sum((-2, -1)) / (ac.norm(dim=(-2, -1)) * tc.norm(dim=(-2, -1)))
+
+
+def _four_amplitudes(phase):
+    f = torch.polar(torch.ones_like(phase), phase)
+    return torch.stack([propagate_fresnel(f, CASE.plane(k)).field.abs()[:, 0] for k in range(4)], 1)
+
+
+def _sparse_quartet():
+    t = np.zeros((1, 4, N, N))
+    for k, (y, x) in enumerate([(30, 30), (30, 78), (78, 78), (78, 30)]):
+        t[0, k, y:y + 20, x:x + 20] = 1.0  # 2.4 % bright pixels per plane
+    return torch.from_numpy(t)
+
+
+def _dense_quartet():
+    yy, xx = np.meshgrid(np.linspace(-1, 1, N), np.linspace(-1, 1, N), indexing="ij")
+    t = np.stack([0.5 + 0.5 * np.cos(3 * np.pi * xx) * np.exp(-yy**2), np.exp(-((xx - .3) ** 2 + yy**2) / .2),
+                  0.5 + 0.5 * np.sin(2 * np.pi * (xx + yy)), np.clip(1 - np.sqrt(xx**2 + yy**2), 0, 1)])
+    return torch.from_numpy(t / t.max(axis=(1, 2), keepdims=True))[None]
+
+
+def test_parseval_makes_l2_amplitude_normalisation_a_constant():
+    # Proven: sum |U_out|^2 dy_o dx_o = sum |U_in|^2 dy dx = H*W*dy*dx for A = 1, for ANY phase.
+    # Hence A/||A|| = A * const per plane: an L2-normalised amplitude loss needs no data-dependent scale.
+    for seed in (0, 1):
+        a = _four_amplitudes(_random_phase(seed))
+        for k in range(4):
+            dy_o, dx_o = CASE.plane(k).output_pitch_m(N, N)
+            power = float((a[0, k] ** 2).sum()) * dy_o * dx_o
+            assert power == pytest.approx(N * N * CASE.input_pitch_m[0] * CASE.input_pitch_m[1], rel=1e-12)
+
+
+def test_lsq_gain_nmse_closed_form():
+    # Proven: min_s ||s*A - T||^2/||T||^2 = 1 - cos^2(A, T), attained at s* = <A,T>/||A||^2.
+    t = _dense_quartet()
+    a = _four_amplitudes(_random_phase(3))
+    s_star = (a * t).sum((-2, -1), keepdim=True) / (a**2).sum((-2, -1), keepdim=True)
+    direct = (((s_star * a - t) ** 2).sum((-2, -1)) / (t**2).sum((-2, -1))).mean()
+    assert float(direct) == pytest.approx(float(_lsq_gain_nmse(a, t)), rel=1e-12)
+    for factor in (0.9, 1.1):  # s* is the minimum
+        assert float((((factor * s_star * a - t) ** 2).sum((-2, -1)) / (t**2).sum((-2, -1))).mean()) > float(direct)
+
+
+def test_contract_loss_spike_limit_and_peak_gradient():
+    # Proven: with a = A/max(A), L_c = mean(a^2) - 2 mean(a T) + mean(T^2). A single-pixel spike a = e_p gives
+    # L_c = mean(T^2) + (1 - 2 T_p)/(H W): the "trivial" level. Raising only the peak m with all other A fixed:
+    # dL_c/dm = -(2/(H W m)) * sum_{i != p} a_i (a_i - T_i) < 0 whenever the normalised prediction exceeds the
+    # target in that weighted sense -> the loss rewards inflating the maximum (concentrating light).
+    t = _sparse_quartet()[0, 0]
+    spike = torch.zeros(N, N, dtype=torch.float64)
+    spike[40, 40] = 1.0
+    assert float(_contract_loss(spike, t)) == pytest.approx(float((t**2).mean() + (1 - 2 * t[40, 40]) / (N * N)), rel=1e-12)
+    amp = _four_amplitudes(_random_phase(4))[0, 0].clone()
+    p = divmod(int(amp.argmax()), N)
+    m = amp[p].clone().requires_grad_(True)
+    rest = amp.clone()
+    rest[p] = 0
+    full = rest + m * torch.nn.functional.one_hot(torch.tensor(p[0] * N + p[1]), N * N).reshape(N, N).double()
+    (grad,) = torch.autograd.grad(_contract_loss(full, t), m)
+    a = (amp / amp.max()).flatten()
+    mask = torch.ones(N * N, dtype=torch.bool)
+    mask[p[0] * N + p[1]] = False
+    expected = -(2 / (N * N * m.item())) * float((a[mask] * (a[mask] - t.flatten()[mask])).sum())
+    assert float(grad) == pytest.approx(expected, rel=1e-10)
+    assert float(grad) < 0  # random-phase speckle on a sparse target: inflating the peak lowers L_c
+
+
+def test_abs_gradient_is_bounded_with_zero_subgradient_at_zero():
+    # Proven: |U| is 1-Lipschitz, d|U| = Re(conj(U)/|U| dU) -> |d|U|/dphi| <= |dU/dphi| (no blow-up);
+    # at U = 0 the subdifferential is the unit disk and torch returns 0 (no signal to brighten a zero pixel).
+    u = torch.zeros(1, dtype=torch.complex128, requires_grad=True)
+    u.abs().sum().backward()
+    assert float(u.grad.abs()) == 0.0
+    phase = _random_phase(5).requires_grad_(True)
+    f = torch.polar(torch.ones_like(phase), phase)
+    out = propagate_fresnel(f, CASE.plane(0)).field[0, 0, 70, 70]
+    (g_abs,) = torch.autograd.grad(out.abs(), phase, retain_graph=True)
+    (g_re,) = torch.autograd.grad(out.real, phase, retain_graph=True)
+    (g_im,) = torch.autograd.grad(out.imag, phase)
+    assert float(g_abs.norm()) <= float(torch.sqrt(g_re.norm() ** 2 + g_im.norm() ** 2)) * (1 + 1e-12)
+
+
+def _optimise_phase(targets, loss_fn, seed, steps=300, lr=0.05, planes=(0, 1, 2, 3), init=None):
+    gen = torch.Generator().manual_seed(seed)
+    phase = init.clone() if init is not None else (2 * torch.rand(1, 1, N, N, generator=gen, dtype=torch.float64) - 1) * math.pi
+    phase.requires_grad_(True)
+    opt = torch.optim.Adam([phase], lr=lr)
+    idx = list(planes)
+    for _ in range(steps):
+        opt.zero_grad()
+        loss_fn(_four_amplitudes(phase)[:, idx], targets[:, idx]).backward()
+        opt.step()
+    with torch.no_grad():
+        return phase.detach(), _four_amplitudes(phase)
+
+
+def _study_row(tag, a, t):
+    bright = ((a / a.amax(dim=(-2, -1), keepdim=True)) > 0.5).double().mean((-2, -1))[0]
+    top_share = ((a**2).amax((-2, -1)) / (a**2).sum((-2, -1)))[0]
+    r = _pearson(a, t)[0]
+    lc, triv = float(_contract_loss(a, t)), float((t**2).mean())
+    return (f"| {tag} | {lc:.4f} | {lc / triv:.2f} | {' '.join(f'{v:+.2f}' for v in r.tolist())} | {float(r.mean()):+.3f} "
+            f"| {' '.join(f'{100 * v:.1f}' for v in bright.tolist())} | {float(top_share.mean()) * 100:.2f} |")
+
+
+def test_loss_operator_study(capsys):
+    if not os.environ.get("FRESNEL_LOSS_STUDY"):
+        pytest.skip("set FRESNEL_LOSS_STUDY=1 to run the ~1 min loss x operator study")
+    losses = (("contract max-MSE", _contract_loss), ("LSQ-gain NMSE", _lsq_gain_nmse), ("1 - Pearson", _one_minus_pearson))
+    with capsys.disabled():
+        for tname, t in (("sparse boxes", _sparse_quartet()), ("dense smooth", _dense_quartet())):
+            print(f"\n{tname}: mean(T^2) = {float((t**2).mean()):.4f}, target bright = "
+                  f"{float((t > 0.5).double().mean()) * 100:.1f} %")
+            print("| run | L_c | L_c / mean(T²) | Pearson per plane | mean Pearson | A/max>0.5, % per plane | top-pixel power share, % |")
+            print("|---|---|---|---|---|---|---|")
+            for lname, fn in losses:
+                for seed in (0, 1, 2):
+                    print(_study_row(f"{lname}, seed {seed}", _optimise_phase(t, fn, seed)[1], t))
+            for k in range(4):
+                print(_study_row(f"single plane {k} only, LSQ", _optimise_phase(t, _lsq_gain_nmse, 0, planes=(k,))[1], t))
+            start, a = _optimise_phase(t, _lsq_gain_nmse, 0)
+            print(_study_row("LSQ solution (start)", a, t))
+            print(_study_row("-> +300 steps of contract loss", _optimise_phase(t, _contract_loss, 0, init=start)[1], t))
