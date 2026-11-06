@@ -14,6 +14,11 @@ from doe_core.contracts_v1 import CaseConfigV1, FresnelGeometry
 
 pytestmark = pytest.mark.integration
 
+# Carrier argument is ~3e5 rad. Equivalent float64 expression orders can
+# differ by ~6e-11 rad (one ULP), so retain a 1e-9 raw-complex error budget.
+# No fitted phase/gain alignment is allowed to make an implementation pass.
+_COMPLEX128_RTOL = 1e-9
+
 
 def _propagator():
     try:
@@ -62,7 +67,7 @@ def test_independent_complex_field_rectangular_and_odd(shape, pitch, dtype):
     field = torch.as_tensor(_asymmetric_field(shape), dtype=dtype)
     expected = _reference(field.numpy().astype(np.complex128), geometry)
     result = _propagator()(field, geometry)
-    limit = 3e-6 if dtype == torch.complex64 else 1e-11
+    limit = 3e-6 if dtype == torch.complex64 else _COMPLEX128_RTOL
     assert _relative_error(result.field.detach().numpy(), expected) < limit
     expected_pitch = _quadrature_parts(shape, geometry)[3]
     np.testing.assert_allclose(result.output_pitch_m, expected_pitch, rtol=1e-13, atol=0)
@@ -78,7 +83,7 @@ def test_all_official_planes_against_direct_integral_kernel(index):
     field = _asymmetric_field((128, 128), batch=1)
     expected = _reference(field, geometry)
     result = _propagator()(torch.from_numpy(field), geometry)
-    assert _relative_error(result.field.detach().numpy(), expected) < 1e-11
+    assert _relative_error(result.field.detach().numpy(), expected) < _COMPLEX128_RTOL
     np.testing.assert_allclose(result.output_pitch_m, _quadrature_parts((128,128),geometry)[3],
                                rtol=1e-13, atol=0)
 
@@ -110,9 +115,21 @@ def test_independent_oracle_rejects_shared_forward_faults():
     field = torch.from_numpy(_asymmetric_field((4,6), batch=1))
     actual = _propagator()(field, geometry).field.detach().numpy()
     expected = _reference(field.numpy(), geometry)
-    assert _relative_error(actual, expected) < 1e-11
-    for faulty in (actual*2, actual.conj(), actual[..., ::-1], np.roll(actual, 1, axis=-1)):
+    assert _relative_error(actual, expected) < _COMPLEX128_RTOL
+    wrong_chirp = np.exp(0.1j * np.arange(6, dtype=np.float64)**2)
+    for faulty in (actual*2, actual.conj(), actual*wrong_chirp,
+                   actual[..., ::-1], np.roll(actual, 1, axis=-1)):
         assert _relative_error(faulty, expected) > 1e-2
     # In particular, per-plane max would hide the *2 fault in the PNG roundtrip.
     np.testing.assert_allclose(np.abs(actual)/np.abs(actual).max(),
                                np.abs(2*actual)/np.abs(2*actual).max())
+
+
+def test_equivalent_float64_carrier_order_is_within_error_budget():
+    # Auditor's reproducer: 26.5mm causes a one-ULP carrier phase difference.
+    geometry = CaseConfigV1().plane(2)
+    expected = _reference(_asymmetric_field((128,128),batch=1), geometry)
+    a = 2*np.pi*geometry.distance_m/geometry.wavelength_m
+    b = (2*np.pi/geometry.wavelength_m)*geometry.distance_m
+    equivalent = expected * (np.exp(1j*b)/np.exp(1j*a))
+    assert _relative_error(equivalent, expected) < _COMPLEX128_RTOL
