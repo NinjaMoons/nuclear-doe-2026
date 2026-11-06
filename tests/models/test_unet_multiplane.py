@@ -451,3 +451,397 @@ def test_integration_heldout_inference_through_export(real_run, tmp_path):
                for p in metrics["planes"])
     assert manifest["metadata"]["checkpoint_sha256"] == payload["sha256"]
     assert manifest["metadata"]["method"] == "fourinput_unet"
+
+
+# --------------------------------------------------------------------------- opt-in training objective (#5, coordinator decision)
+from doe_models.train_multiplane import TRAINING_OBJECTIVES, training_objective  # noqa: E402
+
+LSQ_MIX = "lsq_gain_nmse_plus_0.1_contract_mse_v1"
+
+
+def test_objective_names_and_default_is_contract():
+    assert TRAINING_OBJECTIVES == ("contract_mse", LSQ_MIX)
+    A = torch.rand(1, 4, 1, 3, 4, dtype=torch.float64, generator=torch.Generator().manual_seed(1)) + 0.1
+    T = torch.rand(1, 4, 1, 3, 4, dtype=torch.float64, generator=torch.Generator().manual_seed(2))
+    from doe_models.adam_multiplane import multiplane_loss
+    value, info = training_objective(A, T, "contract_mse")
+    assert float(value) == float(multiplane_loss(A, T)[0])
+    assert info["zero_target_planes"] == 0
+
+
+def test_lsq_mix_matches_hand_computed_value():
+    A = torch.zeros(1, 4, 1, 2, 2, dtype=torch.float64)
+    T = torch.zeros_like(A)
+    A[0, 0, 0] = torch.tensor([[1.0, 0.0], [0.0, 0.0]])
+    T[0, 0, 0] = torch.tensor([[0.0, 1.0], [0.0, 0.0]])
+    for k in (1, 2, 3):
+        T[0, k, 0] = torch.tensor([[0.0, 0.5], [1.0, 1.0]])
+        A[0, k, 0] = 3.0 * T[0, k, 0]
+    value, info = training_objective(A, T, LSQ_MIX)
+    # plane 0: optimal gain s = <A,T>/<A,A> = 0 -> NMSE = 1; contract = (1+1)/4 = 0.5
+    # planes 1-3: A = 3T -> NMSE 0, contract 0.  total = mean(1,0,0,0) + 0.1 * mean(.5,0,0,0)
+    assert float(value) == pytest.approx(0.25 + 0.1 * 0.125, abs=1e-15)
+    assert info["lsq_nmse"] == pytest.approx(0.25, abs=1e-15)
+    assert info["contract_mse"] == pytest.approx(0.125, abs=1e-15)
+    assert value.dtype == torch.float64
+
+
+def test_lsq_mix_is_scale_invariant_and_differentiable():
+    gen = torch.Generator().manual_seed(3)
+    A = (torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.1).requires_grad_(True)
+    T = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64)
+    v1, _ = training_objective(A, T, LSQ_MIX)
+    v5, _ = training_objective(5.0 * A, T, LSQ_MIX)
+    assert float(v1.detach()) == pytest.approx(float(v5.detach()), rel=1e-12)
+    assert torch.autograd.gradcheck(lambda a: training_objective(a, T, LSQ_MIX)[0], (A,))
+
+
+def test_lsq_mix_float32_input_is_reduced_in_float64():
+    A = torch.rand(1, 4, 1, 3, 4, generator=torch.Generator().manual_seed(4)) + 0.1
+    T = torch.rand(1, 4, 1, 3, 4, generator=torch.Generator().manual_seed(5))
+    v32, _ = training_objective(A, T, LSQ_MIX)
+    v64, _ = training_objective(A.double(), T.double(), LSQ_MIX)
+    assert v32.dtype == torch.float64 and float(v32) == float(v64)
+
+
+def test_lsq_mix_zero_target_plane_falls_back_to_contract_and_is_counted():
+    A = torch.rand(2, 4, 1, 3, 4, generator=torch.Generator().manual_seed(6), dtype=torch.float64) + 0.1
+    T = torch.rand(2, 4, 1, 3, 4, generator=torch.Generator().manual_seed(7), dtype=torch.float64)
+    T[1, 2] = 0.0
+    value, info = training_objective(A, T, LSQ_MIX)
+    assert info["zero_target_planes"] == 1
+    assert math.isfinite(float(value))
+    D = A / A.amax(dim=(-2, -1), keepdim=True)
+    per_contract = ((D - T) ** 2).mean(dim=(-2, -1))[..., 0]          # [B,4]
+    s = (A * T).sum(dim=(-2, -1)) / (A * A).sum(dim=(-2, -1))
+    per_lsq = ((s[..., None, None] * A - T) ** 2).sum(dim=(-2, -1)) / (T * T).sum(dim=(-2, -1))
+    per_lsq = per_lsq[..., 0]
+    per_lsq[1, 2] = per_contract[1, 2]
+    expected = per_lsq.mean() + 0.1 * per_contract.mean()
+    assert float(value) == pytest.approx(float(expected), rel=1e-12)
+
+
+def test_unknown_objective_rejected():
+    A = torch.ones(1, 4, 1, 2, 2)
+    with pytest.raises(ValueError):
+        training_objective(A, A, "pearson_only")
+    with pytest.raises(ValueError):
+        train_multiplane(build_model(seed=0, **SMALL), quartets(1, seed=0), config=CONFIG,
+                         propagate_fn=ScreenStub(), steps=1, training_objective="pearson_only")
+
+
+@pytest.fixture(scope="module")
+def mix_run():
+    calls = []
+
+    def val_metrics(amplitudes, targets):
+        calls.append(tuple(amplitudes.shape))
+        return {"pearson_plane": [0.1, 0.2, 0.3, 0.4], "ssim_plane": [0.0, 0.1, 0.2, 0.3]}
+
+    model = build_model(seed=0, **SMALL)
+    log = train_multiplane(model, quartets(4, seed=10), config=CONFIG, propagate_fn=ScreenStub(), steps=6,
+                           lr=3e-3, batch_size=2, seed=0, val_targets=quartets(2, seed=20), eval_every=3,
+                           training_objective=LSQ_MIX, val_metrics_fn=val_metrics)
+    return model, log, calls
+
+
+def test_training_with_lsq_mix_logs_objective_and_selects_best_by_it(mix_run):
+    model, log, calls = mix_run
+    assert log["training_objective"] == LSQ_MIX
+    assert [v["step"] for v in log["val"]] == [0, 3, 6]
+    for v in log["val"]:
+        assert {"objective", "contract_mse", "trivial_mean_t2", "bright_fraction",
+                "zero_target_planes", "metrics"} <= set(v)
+        assert 0 <= v["bright_fraction"] <= 1 and v["trivial_mean_t2"] > 0
+        assert v["metrics"]["pearson_plane"] == [0.1, 0.2, 0.3, 0.4]
+    assert log["best_val_loss"] == min(v["objective"] for v in log["val"])
+    assert log["val"][[v["step"] for v in log["val"]].index(log["best_step"])]["objective"] == log["best_val_loss"]
+    assert all({"objective", "contract_mse"} <= set(h) for h in log["history"])
+    assert log["zero_target_fallbacks"] == 0
+    assert calls and all(c == (2, 4, 1, H, W) for c in calls)
+    import json
+    json.dumps(log, allow_nan=False)
+
+
+def test_model_holds_best_weights_by_objective(mix_run):
+    model, log, _ = mix_run
+    val = quartets(2, seed=20)
+    now = evaluate_model(model, val, config=CONFIG, propagate_fn=ScreenStub(), training_objective=LSQ_MIX)
+    assert now["objective"] == pytest.approx(log["best_val_loss"], rel=1e-6)
+
+
+def test_default_training_still_uses_contract_objective(smoke):
+    _, _, log, _, _ = smoke
+    assert log["training_objective"] == "contract_mse"
+    assert log["best_val_loss"] == min(v["val_loss"] for v in log["val"])
+
+
+def test_best_state_is_chosen_by_objective_not_contract(monkeypatch):
+    """Scripted validation where the objective and the contract MSE disagree on the best step."""
+    import doe_models.train_multiplane as tm
+    real = tm.evaluate_model
+    scripted = iter([(0.9, 0.30), (0.2, 0.40), (0.5, 0.10)])   # (objective, contract) at val steps 0,1,2
+
+    def fake(model, targets, **kw):
+        out = real(model, targets, **kw)
+        if targets.shape[0] == 2:          # validation set only
+            objective, contract = next(scripted)
+            out.update(objective=objective, loss=contract)
+        return out
+
+    monkeypatch.setattr(tm, "evaluate_model", fake)
+    log = tm.train_multiplane(build_model(seed=0, **SMALL), quartets(3, seed=0), config=CONFIG,
+                              propagate_fn=ScreenStub(), steps=2, batch_size=1, seed=0,
+                              val_targets=quartets(2, seed=1), eval_every=1, training_objective=LSQ_MIX)
+    assert [v["objective"] for v in log["val"]] == [0.9, 0.2, 0.5]
+    assert log["best_step"] == 1 and log["best_val_loss"] == 0.2
+
+
+# --------------------------------------------------------------------------- training driver / entrypoint (#5B)
+import hashlib as _hashlib  # noqa: E402
+import json as _json  # noqa: E402
+import os as _os  # noqa: E402
+
+from doe_models import train_multiplane as tm  # noqa: E402
+
+
+def _png_loader(paths):
+    """Test-only stand-in for #4A load_png_quartet: 4 mode-L PNG -> [1,4,1,H,W] float32 /255."""
+    import numpy as np
+    from PIL import Image
+    arr = [torch.from_numpy(np.array(Image.open(p))).float() / 255 for p in paths]
+    return torch.stack(arr)[None, :, None]
+
+
+def _fake_export(paths, phase, run_dir, *, metadata, synthetic_test):
+    """Test-only stand-in for #7 export_run: writes the files the driver reads back."""
+    import numpy as np
+    from PIL import Image
+    run_dir.mkdir(parents=True, exist_ok=False)
+    amp = tm.multiplane_amplitudes(phase.double(), CONFIG, ScreenStub())
+    codes = np.floor(255 * (amp / amp.amax(dim=(-2, -1), keepdim=True)).numpy() + 0.5).astype(np.uint8)
+    for k in range(4):
+        Image.fromarray(codes[0, k, 0]).save(run_dir / f"reconstructed_{k + 1:02d}.png")
+    np.savez(run_dir / "raw.npz", amplitude_quantized=amp.numpy())
+    planes = [{"index": k, "pearson": 0.1 * (k + 1), "ssim": 0.05 * (k + 1), "pearson_defined": True}
+              for k in range(4)]
+    (run_dir / "metrics.json").write_text(_json.dumps({"planes": planes}))
+    (run_dir / "manifest.json").write_text(_json.dumps({"metadata": metadata}))
+
+
+def _components():
+    return tm.DriverComponents(propagate=ScreenStub(), load_quartet=_png_loader,
+                               val_metrics=lambda a, t: {"pearson_plane": [0.0] * 4, "ssim_plane": [0.0] * 4},
+                               export_run=_fake_export)
+
+
+def _write_manifest(root, counts=(("train", 4), ("val", 2), ("test", 2)), mutate=None):
+    import numpy as np
+    from PIL import Image
+    samples, seed = [], 0
+    for split, n in counts:
+        for i in range(n):
+            seed += 1
+            q = (quartets(1, seed=seed)[0, :, 0].numpy() * 255).round().astype(np.uint8)
+            rel = [f"c1/{split}{i}/z{k + 1}.png" for k in range(4)]
+            for k, r in enumerate(rel):
+                (root / r).parent.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(q[k]).save(root / r)
+            samples.append({"corpus_id": "c1", "local_sample_id": f"{split}{i}", "origin_id": f"c1:o{split}{i}",
+                            "split": split, "kind": "B", "paths": rel,
+                            "sha256": [_hashlib.sha256((root / r).read_bytes()).hexdigest() for r in rel]})
+    manifest = {"schema": tm.MANIFEST_SCHEMA, "contract_version": "1.1-amplitude", "samples": samples}
+    if mutate:
+        mutate(manifest)
+    path = root / "manifest.json"
+    path.write_text(_json.dumps(manifest))
+    return path
+
+
+def test_load_manifest_returns_splits_and_hash(tmp_path):
+    path = _write_manifest(tmp_path)
+    data = tm.load_manifest(path, load_quartet=_png_loader)
+    assert {k: data["splits"][k]["targets"].shape[0] for k in tm.SPLITS} == {"train": 4, "val": 2, "test": 2}
+    assert data["splits"]["val"]["ids"] == ["c1:val0", "c1:val1"]
+    assert data["splits"]["train"]["targets"].shape[1:] == (4, 1, H, W)
+    assert data["manifest_sha256"] == _hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+MANIFEST_DEFECTS = {
+    "wrong_schema": lambda m: m.__setitem__("schema", "other"),
+    "intensity_contract": lambda m: m.__setitem__("contract_version", "0-intensity"),
+    "bad_sha": lambda m: m["samples"][0]["sha256"].__setitem__(0, "0" * 64),
+    "three_paths": lambda m: m["samples"][0]["paths"].pop(),
+    "duplicate_key": lambda m: m["samples"][1].__setitem__("local_sample_id", m["samples"][0]["local_sample_id"]),
+    "origin_leak": lambda m: m["samples"][-1].__setitem__("origin_id", m["samples"][0]["origin_id"]),
+    "unknown_split": lambda m: m["samples"][0].__setitem__("split", "dev"),
+    "escaping_path": lambda m: m["samples"][0]["paths"].__setitem__(0, "../outside.png"),
+    "absolute_path": lambda m: m["samples"][0]["paths"].__setitem__(0, "C:/x.png" if _os.name == "nt" else "/x.png"),
+    "colon_in_corpus": lambda m: m["samples"][0].__setitem__("corpus_id", "c:1"),
+}
+
+
+@pytest.mark.parametrize("name", list(MANIFEST_DEFECTS))
+def test_load_manifest_rejects_defects(name, tmp_path):
+    path = _write_manifest(tmp_path, mutate=MANIFEST_DEFECTS[name])
+    with pytest.raises(ValueError):
+        tm.load_manifest(path, load_quartet=_png_loader)
+
+
+def test_load_manifest_requires_all_three_splits(tmp_path):
+    path = _write_manifest(tmp_path, counts=(("train", 2), ("val", 1)))
+    with pytest.raises(ValueError, match="test"):
+        tm.load_manifest(path, load_quartet=_png_loader)
+
+
+def test_on_validate_hook_and_continuous_single_run():
+    calls = []
+    model = build_model(seed=0, **SMALL)
+    log = train_multiplane(model, quartets(4, seed=10), config=CONFIG, propagate_fn=ScreenStub(), steps=6,
+                           batch_size=2, seed=0, val_targets=quartets(2, seed=20), eval_every=2,
+                           on_validate=lambda step, m, entry, is_best, is_last: calls.append(
+                               (step, is_best, is_last, entry["objective"], m is model)))
+    assert [c[0] for c in calls] == [0, 2, 4, 6]
+    assert [c[2] for c in calls] == [False, False, False, True]
+    assert all(c[4] for c in calls)
+    best_steps = [c[0] for c in calls if c[1]]
+    assert best_steps[-1] == log["best_step"]
+    assert [h["step"] for h in log["history"]] == [1, 2, 3, 4, 5, 6]
+    assert all(h["step_s"] > 0 for h in log["history"])
+
+
+def test_train_rejects_model_and_data_on_different_devices():
+    model = build_model(seed=0, **SMALL).to(torch.device("meta"))
+    with pytest.raises(ValueError, match="device"):
+        train_multiplane(model, quartets(2, seed=0), config=CONFIG, propagate_fn=ScreenStub(), steps=1)
+
+
+@pytest.fixture(scope="module")
+def driver_run(tmp_path_factory):
+    root = tmp_path_factory.mktemp("driver")
+    manifest = _write_manifest(root)
+    out = root / "run"
+    rc = tm.main(["--manifest", str(manifest), "--out-dir", str(out), "--device", "cpu", "--updates", "6",
+                  "--eval-every", "2", "--batch-size", "2", "--base-channels", "4", "--depth", "2",
+                  "--seed", "0"], components=_components())
+    return rc, out, manifest
+
+
+def test_driver_writes_checkpoints_logs_and_eval(driver_run):
+    rc, out, manifest = driver_run
+    assert rc == 0
+    for name in ("run_config.json", "environment.json", "train_log.json", "eval_summary.json",
+                 "checkpoints/best.pt", "checkpoints/last.pt", "checkpoints/step_000002.pt",
+                 "checkpoints/step_000004.pt", "checkpoints/step_000006.pt"):
+        assert (out / name).exists(), name
+    cfg = _json.loads((out / "run_config.json").read_text())
+    assert cfg["training_objective"] == "lsq_gain_nmse_plus_0.1_contract_mse_v1"
+    assert cfg["updates"] == 6 and cfg["eval_every"] == 2 and cfg["amp"] is False
+    assert cfg["manifest_sha256"] == _hashlib.sha256(manifest.read_bytes()).hexdigest()
+    assert set(cfg["code_sha256"]) >= {"doe_models/train_multiplane.py", "doe_models/unet_multiplane.py",
+                                        "doe_models/adam_multiplane.py"}
+    log = _json.loads((out / "train_log.json").read_text())
+    assert [h["step"] for h in log["history"]] == list(range(1, 7))
+    assert [v["step"] for v in log["val"]] == [0, 2, 4, 6]
+
+
+def test_driver_checkpoints_are_marked_and_loadable(driver_run):
+    _, out, _ = driver_run
+    kinds = {}
+    for name in ("best", "last", "step_000004"):
+        _, payload = load_checkpoint(out / "checkpoints" / f"{name}.pt")
+        kinds[name] = payload["extra"]
+        assert payload["extra"]["resumable"] is False
+    assert kinds["best"]["kind"] == "best" and kinds["last"]["kind"] == "last"
+    assert kinds["step_000004"]["kind"] == "periodic" and kinds["step_000004"]["step"] == 4
+    log = _json.loads((out / "train_log.json").read_text())
+    assert kinds["best"]["step"] == log["best_step"]
+    assert kinds["last"]["step"] == 6
+
+
+def test_driver_post_run_eval_is_val_only_over_all_checkpoints(driver_run):
+    _, out, _ = driver_run
+    s = _json.loads((out / "eval_summary.json").read_text())
+    assert s["splits"] == ["val"]
+    names = [c["name"] for c in s["checkpoints"]]
+    assert names == ["best.pt", "last.pt", "step_000002.pt", "step_000004.pt", "step_000006.pt"]
+    for c in s["checkpoints"]:
+        assert "test" not in c                       # test is never opened by the training run
+        r = c["val"]
+        assert r["pearson_plane"] == pytest.approx([0.1, 0.2, 0.3, 0.4])
+        assert r["ssim_plane"] == pytest.approx([0.05, 0.1, 0.15, 0.2])
+        assert r["worst_plane_pearson"] == pytest.approx(0.1)
+        assert {"lit_frac", "target_lit_frac", "peak_pixel_power_frac", "collapse", "n"} <= set(r)
+        assert r["n"] == 2 and len(c["checkpoint_sha256"]) == 64
+    log = _json.loads((out / "train_log.json").read_text())
+    assert s["best_by_objective"] == {"name": "best.pt", "step": log["best_step"]}
+    assert s["best_by_val_pearson"]["name"] in names     # reported separately, never assumed equal
+
+
+def test_explicit_test_evaluation_of_a_chosen_checkpoint(driver_run):
+    _, out, manifest = driver_run
+    rc = tm.main(["--manifest", str(manifest), "--out-dir", str(out / "test_eval"), "--device", "cpu",
+                  "--evaluate-checkpoint", str(out / "checkpoints" / "step_000004.pt"), "--eval-splits", "test"],
+                 components=_components())
+    assert rc == 0
+    s = _json.loads((out / "test_eval" / "eval_summary.json").read_text())
+    assert s["splits"] == ["test"] and len(s["checkpoints"]) == 1
+    c = s["checkpoints"][0]
+    assert c["name"] == "step_000004.pt" and c["kind"] == "periodic" and c["step"] == 4
+    assert "val" not in c and c["test"]["n"] == 2
+
+
+def test_driver_refuses_existing_out_dir(driver_run):
+    _, out, manifest = driver_run
+    with pytest.raises(FileExistsError):
+        tm.main(["--manifest", str(manifest), "--out-dir", str(out), "--device", "cpu", "--updates", "1"],
+                components=_components())
+
+
+def test_driver_smoke_mode_measures_steps_without_checkpoints(tmp_path):
+    manifest = _write_manifest(tmp_path)
+    out = tmp_path / "smoke"
+    rc = tm.main(["--manifest", str(manifest), "--out-dir", str(out), "--device", "cpu", "--smoke-steps", "3",
+                  "--batch-size", "2", "--base-channels", "4", "--depth", "2"], components=_components())
+    assert rc == 0
+    smoke = _json.loads((out / "smoke.json").read_text())
+    assert smoke["steps"] == 3 and smoke["s_per_step"] > 0 and smoke["device"] == "cpu"
+    assert not (out / "checkpoints").exists()
+
+
+def test_driver_rejects_cuda_when_unavailable(tmp_path, monkeypatch):
+    manifest = _write_manifest(tmp_path)
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(RuntimeError, match="CUDA"):
+        tm.main(["--manifest", str(manifest), "--out-dir", str(tmp_path / "x"), "--device", "cuda"],
+                components=_components())
+
+
+@pytest.mark.integration
+def test_integration_driver_with_production_components(tmp_path):
+    """Real Fresnel + #4A loader/metrics + #7 export_run; evaluation runs in a NEW process."""
+    for mod in ("doe_core.fresnel", "doe_experiments.data", "doe_experiments.export",
+                "doe_experiments.metrics", "doe_experiments.png_io"):
+        pytest.importorskip(mod, reason=f"{mod} is not in this tree")
+    import os
+    import pathlib
+    manifest = _write_manifest(tmp_path)
+    out = tmp_path / "run"
+    root = pathlib.Path(__file__).resolve().parents[2]
+    cwd = os.getcwd()
+    os.chdir(root)  # the evaluation subprocess runs `python -m doe_models.train_multiplane` from the tree root
+    try:
+        rc = tm.main(["--manifest", str(manifest), "--out-dir", str(out), "--device", "cpu", "--updates", "2",
+                      "--eval-every", "1", "--batch-size", "2", "--base-channels", "4", "--depth", "2"])
+    finally:
+        os.chdir(cwd)
+    assert rc == 0
+    s = _json.loads((out / "eval_summary.json").read_text())
+    assert s["splits"] == ["val"] and {c["name"] for c in s["checkpoints"]} == {
+        "best.pt", "last.pt", "step_000001.pt", "step_000002.pt"}
+    for c in s["checkpoints"]:
+        assert len(c["val"]["pearson_plane"]) == 4 and c["val"]["n"] == 2
+    assert (out / "eval_val" / "export" / "best.pt" / "val" / "000" / "DOE.png").exists()
+    log = _json.loads((out / "train_log.json").read_text())
+    assert log["propagator"] == "propagate_fresnel"
+    assert log["val"][-1]["metrics"]["source"].startswith("official")
