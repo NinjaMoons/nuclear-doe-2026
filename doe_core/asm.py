@@ -14,7 +14,6 @@ Sampling limits (aliasing of H) are documented in docs/modules/asm.md.
 """
 from __future__ import annotations
 
-from functools import lru_cache
 import math
 
 import torch
@@ -41,14 +40,15 @@ def _validate_field(field: object, name: str = "field") -> None:
         raise ValueError(f"{name} contains NaN or Inf")
 
 
-@lru_cache(maxsize=32)
 def _transfer_cpu(
     height: int, width: int, wavelength_m: float, dy: float, dx: float, distance_m: float
 ) -> Tensor:
-    """Transfer function on CPU in complex128.
+    """Transfer function on CPU in complex128, built fresh on every call.
 
     Computed in float64 because 2*pi*z/lambda reaches ~1e6 rad for typical
-    geometries, where float32 phase error would be ~0.1 rad.
+    geometries, where float32 phase error would be ~0.1 rad. Deliberately not
+    cached: a tensor cached under torch.inference_mode() would later break
+    autograd (review of PR #13).
     """
     fy = torch.fft.fftfreq(height, d=dy, dtype=torch.float64)
     fx = torch.fft.fftfreq(width, d=dx, dtype=torch.float64)

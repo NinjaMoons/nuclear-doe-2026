@@ -7,6 +7,7 @@ import math
 import pytest
 import torch
 
+import doe_core.asm as asm_module
 from doe_core.asm import intensity, propagate
 from doe_core.contracts import OpticsConfig
 
@@ -181,6 +182,51 @@ def test_padding_converges_for_example_preset():
     assert 0.5 < capture < 1  # power leaves the cropped window; it is not renormalised
 
 
+# --- 2D sampling criterion (docs/modules/asm.md) --------------------------------------
+
+
+def max_transfer_phase_step(n_y, n_x, dy, dx, wavelength, z):
+    """Largest |delta arg H| between adjacent propagating FFT bins along y or x (float64, unwrapped)."""
+    fy = torch.fft.fftshift(torch.fft.fftfreq(n_y, d=dy, dtype=torch.float64))
+    fx = torch.fft.fftshift(torch.fft.fftfreq(n_x, d=dx, dtype=torch.float64))
+    arg = 1 / wavelength**2 - fy[:, None] ** 2 - fx[None, :] ** 2
+    phase = 2 * math.pi * z * torch.sqrt(arg.clamp(min=0))
+    ok = arg >= 0
+    step_y = (phase[1:] - phase[:-1]).abs()[ok[1:] & ok[:-1]]
+    step_x = (phase[:, 1:] - phase[:, :-1]).abs()[ok[:, 1:] & ok[:, :-1]]
+    return max(step_y.max().item(), step_x.max().item())
+
+
+def axial_z_max(n, pitch, wavelength):
+    """Old 1D rule (insufficient in 2D)."""
+    return (n * pitch / 2) * math.sqrt(4 * pitch**2 / wavelength**2 - 1)
+
+
+def corner_z_max(n_y, n_x, dy, dx, wavelength):
+    """Sufficient 2D bound when the whole spectral rectangle propagates."""
+    rest = 1 / wavelength**2 - 1 / (4 * dy**2) - 1 / (4 * dx**2)
+    if rest <= 0:
+        return None  # rectangle reaches the evanescent cutoff: no closed-form bound
+    return min(n_y * dy**2, n_x * dx**2) * math.sqrt(rest)
+
+
+def test_axial_rule_misses_diagonal_aliasing_corner_bound_catches_it():
+    # Counterexample from PR #13 review: N=64, dx=dy=lambda, z=50*lambda.
+    n, pitch, z = 64, LAMBDA, 50 * LAMBDA
+    assert z < axial_z_max(n, pitch, LAMBDA)  # old rule would accept
+    assert max_transfer_phase_step(n, n, pitch, pitch, LAMBDA, z) > math.pi  # real 2D grid aliases
+    z_corner = corner_z_max(n, n, pitch, pitch, LAMBDA)
+    assert z > z_corner  # corner bound rejects
+    assert max_transfer_phase_step(n, n, pitch, pitch, LAMBDA, 0.999 * z_corner) <= math.pi
+
+
+@pytest.mark.parametrize("n_y,n_x,dy,dx", [(64, 64, 8e-6, 8e-6), (48, 80, 0.9 * LAMBDA, 1.3 * LAMBDA), (33, 20, 2e-6, 3e-6)])
+def test_corner_bound_is_sufficient(n_y, n_x, dy, dx):
+    z = corner_z_max(n_y, n_x, dy, dx, LAMBDA)
+    assert z is not None
+    assert max_transfer_phase_step(n_y, n_x, dy, dx, LAMBDA, z) <= math.pi * (1 + 1e-9)
+
+
 # --- independent physical reference: paraxial Gaussian beam --------------------------
 
 
@@ -214,6 +260,32 @@ def test_gradcheck_wrt_real_phase(pad):
 
     phase = torch.rand(1, 1, 4, 5, generator=torch.Generator().manual_seed(7), dtype=torch.float64)
     assert torch.autograd.gradcheck(loss, (phase.requires_grad_(True),), eps=1e-6, atol=1e-6, rtol=1e-4)
+
+
+@pytest.mark.parametrize("dtype", [torch.complex64, torch.complex128])
+@pytest.mark.parametrize("pad", [1, 2])
+def test_inference_call_does_not_break_later_autograd(dtype, pad):
+    # Regression (PR #13 review, P1): a transfer function created under inference_mode
+    # must not leak into a later grad-enabled call with the same geometry.
+    config = cfg(1e-3, pitch=(8e-6, 7e-6), pad=pad)
+    field = random_field((2, 1, 5, 7), dtype, seed=10)
+    weights = torch.rand(2, 1, 5, 7, generator=torch.Generator().manual_seed(11), dtype=field.real.dtype)
+
+    def grad_after(warm_inference):
+        clear = getattr(asm_module._transfer_cpu, "cache_clear", None)  # any future cache
+        if clear is not None:
+            clear()
+        if warm_inference:
+            with torch.inference_mode():
+                propagate(field, config)
+        leaf = field.clone().requires_grad_(True)
+        (intensity(propagate(leaf, config)) * weights).sum().backward()
+        return leaf.grad
+
+    warm = grad_after(True)  # inference first, on a cleared cache
+    cold = grad_after(False)
+    assert torch.isfinite(warm).all() and warm.abs().max() > 0
+    assert torch.equal(warm, cold)
 
 
 def test_image_loss_gradient_is_finite_and_nonzero():
