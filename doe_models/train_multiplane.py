@@ -25,7 +25,7 @@ from doe_models.adam_multiplane import multiplane_amplitudes, multiplane_loss
 from doe_models.unet_multiplane import FourInputUNet, build_model
 
 __all__ = ["CHECKPOINT_FORMAT", "MANIFEST_SCHEMA", "SPLITS", "TRAINING_OBJECTIVES", "DriverComponents",
-           "check_disjoint_ids", "checkpoint_metadata", "evaluate_checkpoint", "evaluate_model", "infer_phase",
+           "check_disjoint_ids", "checkpoint_metadata", "evaluate_checkpoint", "evaluate_checkpoints", "evaluate_model", "infer_phase",
            "load_checkpoint", "load_manifest", "main", "physics_loss", "production_components",
            "save_checkpoint", "train_multiplane", "training_objective"]
 
@@ -530,10 +530,10 @@ def _write_json(path: Path, value) -> None:
 
 
 def evaluate_checkpoint(checkpoint, data: dict, components: DriverComponents, out_dir: Path,
-                        device: torch.device, config: CaseConfigV1 | None = None) -> dict:
-    """Load `checkpoint` and run export_run for every val and test quartet; aggregate the 8 metrics.
+                        device: torch.device, config: CaseConfigV1 | None = None, splits=("val",)) -> dict:
+    """Load `checkpoint` and run export_run for every quartet of `splits`; aggregate the 8 metrics.
 
-    Selection is never made here: test is a single held-out report of the given checkpoint.
+    Default is VAL only. Test must be requested explicitly, once, for a checkpoint chosen on VAL.
     """
     import json
     import numpy as np
@@ -542,16 +542,18 @@ def evaluate_checkpoint(checkpoint, data: dict, components: DriverComponents, ou
     model, payload = load_checkpoint(checkpoint)
     model = model.to(device)
     metadata = checkpoint_metadata(payload)
-    summary = {"checkpoint": str(Path(checkpoint).resolve()), "checkpoint_sha256": payload["sha256"],
-               "checkpoint_kind": (payload.get("extra") or {}).get("kind"), "manifest_sha256": data["manifest_sha256"],
-               "evaluation": "export_run per quartet: phase -> DOE.png -> reload -> 4 Fresnel -> 4 PNG -> reload -> Pearson/SSIM",
-               "test_note": "held-out report only; never used for checkpoint or loss selection"}
-    for split in ("val", "test"):
+    extra = payload.get("extra") or {}
+    name = Path(checkpoint).name
+    summary = {"name": name, "checkpoint": str(Path(checkpoint).resolve()), "checkpoint_sha256": payload["sha256"],
+               "kind": extra.get("kind"), "step": extra.get("step"), "manifest_sha256": data["manifest_sha256"]}
+    for split in splits:
+        if split not in ("val", "test"):
+            raise ValueError(f"evaluation split must be val or test, got {split!r}")
         part = data["splits"][split]
         phase = infer_phase(model, part["targets"].to(device)).cpu()
         P, S, lit, tlit, peak = [], [], [], [], []
         for i, (key, files) in enumerate(zip(part["ids"], part["paths"])):
-            run = out_dir / "export" / split / f"{i:03d}"
+            run = out_dir / "export" / name / split / f"{i:03d}"
             run.parent.mkdir(parents=True, exist_ok=True)
             components.export_run(files, phase[i:i + 1], run, synthetic_test=data["synthetic"],
                                   metadata={**metadata, "sample_key": key, "origin_id": part["origins"][i],
@@ -579,6 +581,24 @@ def evaluate_checkpoint(checkpoint, data: dict, components: DriverComponents, ou
     return summary
 
 
+def evaluate_checkpoints(checkpoints, data: dict, components: DriverComponents, out_dir: Path,
+                         device: torch.device, splits=("val",), config: CaseConfigV1 | None = None) -> dict:
+    """Evaluate several checkpoints; report best-by-objective and best-by-VAL-Pearson SEPARATELY."""
+    rows = [evaluate_checkpoint(c, data, components, out_dir, device, config, splits) for c in checkpoints]
+    by_objective = next(({"name": r["name"], "step": r["step"]} for r in rows if r["kind"] == "best"), None)
+    by_pearson = None
+    if "val" in splits:
+        scored = [r for r in rows if r["val"]["pearson_mean"] is not None]
+        if scored:
+            top = max(scored, key=lambda r: r["val"]["pearson_mean"])
+            by_pearson = {"name": top["name"], "step": top["step"], "pearson_mean": top["val"]["pearson_mean"]}
+    return {"splits": list(splits), "checkpoints": rows, "best_by_objective": by_objective,
+            "best_by_val_pearson": by_pearson, "manifest_sha256": data["manifest_sha256"],
+            "evaluation": "export_run per quartet: phase -> DOE.png -> reload -> 4 Fresnel -> 4 PNG -> reload -> Pearson/SSIM",
+            "note": ("best_by_objective is the training selection; best_by_val_pearson is a separate VAL report. "
+                     "Test is opened only explicitly (--eval-splits test) for a checkpoint fixed on VAL.")}
+
+
 def _parser():
     import argparse
     ap = argparse.ArgumentParser(prog="python -m doe_models.train_multiplane",
@@ -596,9 +616,11 @@ def _parser():
     ap.add_argument("--objective", default=LSQ_MIX_OBJECTIVE, choices=TRAINING_OBJECTIVES)
     ap.add_argument("--threads", type=int, default=None)
     ap.add_argument("--smoke-steps", type=int, default=0, help="only time K real train steps; no checkpoints")
-    ap.add_argument("--evaluate-checkpoint", type=Path, default=None,
-                    help="only evaluate this checkpoint on val+test through export_run")
-    ap.add_argument("--no-eval", action="store_true", help="skip the final new-process evaluation")
+    ap.add_argument("--evaluate-checkpoint", type=Path, nargs="+", default=None,
+                    help="only evaluate these checkpoints through export_run (no training)")
+    ap.add_argument("--eval-splits", nargs="+", choices=("val", "test"), default=["val"],
+                    help="splits for --evaluate-checkpoint; default VAL only (open test once, after selection)")
+    ap.add_argument("--no-eval", action="store_true", help="skip the post-run new-process VAL evaluation")
     return ap
 
 
@@ -624,8 +646,8 @@ def main(argv=None, components: DriverComponents | None = None) -> int:
     _write_json(out / "environment.json", env)
 
     if args.evaluate_checkpoint is not None:
-        _write_json(out / "eval_summary.json",
-                    evaluate_checkpoint(args.evaluate_checkpoint, data, components, out, device, config))
+        _write_json(out / "eval_summary.json", evaluate_checkpoints(
+            args.evaluate_checkpoint, data, components, out, device, tuple(args.eval_splits), config))
         return 0
 
     sp = data["splits"]
@@ -694,16 +716,16 @@ def main(argv=None, components: DriverComponents | None = None) -> int:
     log["best_checkpoint_sha256"] = best_sha
     _write_json(out / "train_log.json", log)
 
-    if not args.no_eval:
-        best = ckdir / "best.pt"
+    if not args.no_eval:   # VAL only, every checkpoint (periodic, best, last); test is NOT opened here
+        checkpoints = sorted(ckdir.glob("*.pt"))
         if injected:
-            summary = evaluate_checkpoint(best, data, components, out / "eval_best", device, config)
-        else:   # production: a NEW Python process loads the checkpoint (weights_only) and exports
+            summary = evaluate_checkpoints(checkpoints, data, components, out / "eval_val", device, ("val",), config)
+        else:   # production: a NEW Python process loads the checkpoints (weights_only) and exports
             subprocess.run([sys.executable, "-m", "doe_models.train_multiplane", "--manifest", str(args.manifest),
-                            "--out-dir", str(out / "eval_best"), "--device", args.device,
-                            "--evaluate-checkpoint", str(best)], check=True)
+                            "--out-dir", str(out / "eval_val"), "--device", args.device, "--eval-splits", "val",
+                            "--evaluate-checkpoint", *map(str, checkpoints)], check=True)
             import json
-            summary = json.loads((out / "eval_best" / "eval_summary.json").read_text(encoding="utf-8"))
+            summary = json.loads((out / "eval_val" / "eval_summary.json").read_text(encoding="utf-8"))
         _write_json(out / "eval_summary.json", summary)
     return 0
 

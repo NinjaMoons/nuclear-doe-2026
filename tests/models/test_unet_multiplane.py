@@ -759,17 +759,36 @@ def test_driver_checkpoints_are_marked_and_loadable(driver_run):
     assert kinds["last"]["step"] == 6
 
 
-def test_driver_eval_summary_reports_planes_and_collapse(driver_run):
+def test_driver_post_run_eval_is_val_only_over_all_checkpoints(driver_run):
     _, out, _ = driver_run
     s = _json.loads((out / "eval_summary.json").read_text())
-    for split in ("val", "test"):
-        r = s[split]
+    assert s["splits"] == ["val"]
+    names = [c["name"] for c in s["checkpoints"]]
+    assert names == ["best.pt", "last.pt", "step_000002.pt", "step_000004.pt", "step_000006.pt"]
+    for c in s["checkpoints"]:
+        assert "test" not in c                       # test is never opened by the training run
+        r = c["val"]
         assert r["pearson_plane"] == pytest.approx([0.1, 0.2, 0.3, 0.4])
         assert r["ssim_plane"] == pytest.approx([0.05, 0.1, 0.15, 0.2])
         assert r["worst_plane_pearson"] == pytest.approx(0.1)
         assert {"lit_frac", "target_lit_frac", "peak_pixel_power_frac", "collapse", "n"} <= set(r)
-        assert r["n"] == 2
-    assert s["checkpoint"].endswith("best.pt") and len(s["checkpoint_sha256"]) == 64
+        assert r["n"] == 2 and len(c["checkpoint_sha256"]) == 64
+    log = _json.loads((out / "train_log.json").read_text())
+    assert s["best_by_objective"] == {"name": "best.pt", "step": log["best_step"]}
+    assert s["best_by_val_pearson"]["name"] in names     # reported separately, never assumed equal
+
+
+def test_explicit_test_evaluation_of_a_chosen_checkpoint(driver_run):
+    _, out, manifest = driver_run
+    rc = tm.main(["--manifest", str(manifest), "--out-dir", str(out / "test_eval"), "--device", "cpu",
+                  "--evaluate-checkpoint", str(out / "checkpoints" / "step_000004.pt"), "--eval-splits", "test"],
+                 components=_components())
+    assert rc == 0
+    s = _json.loads((out / "test_eval" / "eval_summary.json").read_text())
+    assert s["splits"] == ["test"] and len(s["checkpoints"]) == 1
+    c = s["checkpoints"][0]
+    assert c["name"] == "step_000004.pt" and c["kind"] == "periodic" and c["step"] == 4
+    assert "val" not in c and c["test"]["n"] == 2
 
 
 def test_driver_refuses_existing_out_dir(driver_run):
@@ -818,10 +837,11 @@ def test_integration_driver_with_production_components(tmp_path):
         os.chdir(cwd)
     assert rc == 0
     s = _json.loads((out / "eval_summary.json").read_text())
-    assert s["checkpoint_kind"] == "best" and len(s["checkpoint_sha256"]) == 64
-    for split in ("val", "test"):
-        assert len(s[split]["pearson_plane"]) == 4 and s[split]["n"] == 2
-        assert (out / "eval_best" / "export" / split / "000" / "DOE.png").exists()
+    assert s["splits"] == ["val"] and {c["name"] for c in s["checkpoints"]} == {
+        "best.pt", "last.pt", "step_000001.pt", "step_000002.pt"}
+    for c in s["checkpoints"]:
+        assert len(c["val"]["pearson_plane"]) == 4 and c["val"]["n"] == 2
+    assert (out / "eval_val" / "export" / "best.pt" / "val" / "000" / "DOE.png").exists()
     log = _json.loads((out / "train_log.json").read_text())
     assert log["propagator"] == "propagate_fresnel"
     assert log["val"][-1]["metrics"]["source"].startswith("official")
