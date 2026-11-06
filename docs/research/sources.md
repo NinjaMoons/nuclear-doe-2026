@@ -52,3 +52,11 @@ Matsushima K., Shimobaba T. (2009), *Band-Limited Angular Spectrum Method for Nu
 ## S07 — официальный кейс
 
 Локальная презентация «AI фотоника.pdf», 7 слайдов, SHA256 a2e4ded9e35cf1b13d3c807b171ad7b50ba946756a7c4a9c09f9dc4e0a46422a; слайды 2 (формула), 3 (метрики), 5 (геометрия), 6 (файлы/PNG и вход/выход). Формула слайда 2 визуально прочитана. Файл найден у Павла в Downloads, не скачан из стороннего источника; не утверждать наличие PDF в GitHub. Краткая постановка также подтверждена текущим сообщением Павла и #14.
+
+## S08 — независимые Fresnel special functions и cycle02
+
+[NIST DLMF7.2(iii)](https://dlmf.nist.gov/7.2#iii), [mpmath1.3.0 Fresnel functions](https://mpmath.org/doc/current/functions/expintegrals.html#fresnel-integrals), [SciPy1.16.2 определения C/S](https://docs.scipy.org/doc/scipy-1.16.2/reference/generated/scipy.special.fresnel.html). Исполнение: mpmath1.3.0 в изолированном reference-deps; SciPy не установлен и не исполнялся. Exact square-aperture expression/RS kernel — S06/S02. Вычисление cell kernels координатора дополнительно сверено с C/S; это не license clearance сторонних моделей.
+
+## S09 — источники B-02, границы проверки
+
+[Авторская запись J.D.Schmidt/AFIT](https://scholar.afit.edu/facpub/2231/) подтверждает book2010/DOI10.1117/3.866274. Сама книга на странице недоступна; приписанные ей разделы/численные допуски не проверены. Voelz SPIE DOI10.1117/3.858456 приведён B, owning SPIE страница не ответила; полное чтение главы не заявляется. Копирование текста/кода книг не выполнялось. Статусы конкретных научных тезисов определены выводом/численными проверками, не авторитетностью названий книг.

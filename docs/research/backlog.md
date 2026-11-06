@@ -25,3 +25,11 @@
 - [ ] Обновлено решение D-001 и связанная GitHub Issue. При провале явно выбран проверенный резерв или задача оставлена открытой.
 
 Текущая рекомендация координатора условная: TorchOptics — кандидат для основного адаптера, waveprop — кандидат для независимой сверки. Она не является экспериментальным результатом и не передаётся B до его независимого ответа.
+
+## R-002: контрольная точка cycle02
+
+- Выполнены собственные ограниченные C/S continuous-rectangle, pixel-cell Fresnel и3point RS comparisons; результаты и source в reviews/R-002-cycle02-experiments.md.
+- Введён current amplitude domain v1.1 как scope проверки; intensity результаты сохранены отдельно.
+- Выполнены max/mean amplitude phase-loss ablations на1syntheticquartet/3seeds/100steps, не NN/PNG8 benchmark.
+- B-02 получен и сохранён как отдельное дополнение; исходникиA/B не правились.
+- Открыто: ACK возможной training-only loss ablation, реальный PyTorch/PNG8/NN/held-out прогон и расширение continuous/RS диагностики на реальные learned masks. Задача ACTIVE, неDONE.

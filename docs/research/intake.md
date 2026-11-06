@@ -36,3 +36,7 @@ GitHub blob исходного A: `35777351f41e70f96e9396c20e68f5f454cf2ea2`; ф
 | responses/R-002-B-received-01.md | PROVISIONAL_RECEIVED; message.txt, отдельный документ в процессе по словам Павла | 62120 / 61e5808b2a8c8a6b77ecb9cf543ec2ff31cb98abb65b37f89e1591e736a3361f / 3ea8b1eb56d2080d1702a56bd088d2ecfec0dca2 |
 
 Архивировано через base64 blob API, blob SHA сверён с прямым хешированием исходных bytes. Исправления только в reviews/R-002-AB-received-01-review.md. Следующий документ B сохранить новым export-02/attachment, не перезаписывать message.txt-снимок. В B нет исполняемых логов/подтверждения actual tools; численные прогнозы не результаты.
+
+## Дополнение R-002-B-02
+
+responses/R-002-B-received-02.md — message (2).txt, 47581 bytes, SHA256 979e4ded8dd30538116e70ec1bc760f676ad67b7ae9743f086cf7893b38416af, Git blob fd7b3ae7068c8515e0adf756847e2ea9bbe5169a. Получено как отдельное дополнение по словам Павла; B-01 не перезаписывался. Сам B-02 сообщил, что код не запускался. Прочитанные автором книги/тексты не подтверждены только их перечислением. Проверка — reviews/R-002-B-received-02-review.md; собственные эксперименты — reviews/R-002-cycle02-experiments.md.

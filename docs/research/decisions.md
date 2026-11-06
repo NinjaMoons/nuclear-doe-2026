@@ -47,3 +47,7 @@
 ## D-007 — не менять контракт по категоричным рекомендациям новых A/B
 
 Сохраняем предлагаемый v1 baseline до воспроизводимой end-to-end абляции и согласования. NumPy gradient-check опроверг конкретный прогноз A, но не установил превосходство max или mean. B не служит основанием навязать FNO, 14channels, atan2-head, target-fitted eval gain или считать Adam физическим oracle. Готовый обязательный path приоритетнее P2-расширений. Текущий B промежуточный; финальный документ ожидается, оригиналы не перезаписывать.
+
+## D-008 — синхронизация с amplitude v1.1 и диагностические references
+
+На301ea47 PR15 описан проект amplitude A/max(A), а не прежний intensity. Обе собственные loss ablations разделены. Контракт/display/production-код не меняем по research результату; координатору предлагается controlled training-only mean-amplitude ablation при неизменном primary eval. Continuous smooth-field, pixel-cell Fresnel и RS references используют разные явные допущения и не заменяют single-FFT128.5%gateB02 дляcell-lens отвергнут наблюдением; arbitrary ROI/crop/новые latency AC не вводятся. Полные научные гарантии/нейросеть ещё не подтверждены.

@@ -158,3 +158,53 @@
 - Приоритет: P0.
 
 Передачи: [#3](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3#issuecomment-6691097004), [#14](https://github.com/NinjaMoons/nuclear-doe-2026/issues/14#issuecomment-6691097481), [#5](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5#issuecomment-6691097904), [#4](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4#issuecomment-6691098663).
+
+## Cycle02: независимые численные результаты
+
+### R-002-E12
+- ID исследования: R-002.
+- Утверждение: Совпадение FFT с прямой дискретной суммой не гарантирует точность непрерывного Fresnel.
+- Источник/доказательство: C/S antiderivative (NIST/mpmath1.3) и независимый midpoint-refinement. FFT/same-sum error<=1.85e-14; relative intensity error against smooth continuous reference1.82–2.33% (constant aperture) и78.53–81.93% (tilt45/mm),32subpoints снижает до~1.5–1.9e-5.
+- Достоверность: CONFIRMED для8заданных rectangle/tilt случаев; не universal error bound.
+- Применимость: физическая диагностика и loss официального four-plane single-FFT case; не замена mandatoryоператора.
+- Действие: Сохранить mandatory128 one-FFT. Документировать interpolation/апертуру, diagnostics без скрытой renorm. Не использовать zcrit как universal pass/fail.
+- Ответственный: ggmaster913; независимая оценка MVRto01.
+- GitHub Issue: #14.
+- Проверка: Повторить reference на тех же physical output points, фиксировать field model и refinement; project direct-sum regression отдельно.
+- Приоритет: P0.
+
+### R-002-E13
+- ID исследования: R-002.
+- Утверждение: Предложенный B02 A1 gate5% для point-FFT против rect-pixel lens неверен.
+- Источник/доказательство: 128full-fill sample-held lens f25.3, fourz, central64:59.39/63.76/52.86/56.16%. CellGauss8vs16 relative field<=7.28e-12, C/S spotcheck<=1.83e-14*d. Source models не одинаковы с smooth continuous lens.
+- Достоверность: REJECTED tolerance в такой формулировке; CONFIRMED наблюдение в явно заданной pixel модели.
+- Применимость: физическая диагностика и loss официального four-plane single-FFT case; не замена mandatoryоператора.
+- Действие: Не вводить 5% gate/centralcrop/латентные pixel hooks вCI. Point/cell compare только diagnostic; обязательный forward менять нельзя.
+- Ответственный: ggmaster913 / MVRto01.
+- GitHub Issue: #14.
+- Проверка: Отдельно discrete convention tests и converged cell model; пределы качества не нормировать к target. B02 HannA2 не объявлять проверенным Gaussian тестом.
+- Приоритет: P0.
+
+### R-002-E14
+- ID исследования: R-002.
+- Утверждение: В current amplitude-domain bounded trial mean-normalized training лучше max-normalized по общему max-amplitude eval, но max не стагнирует.
+- Источник/доказательство: Onefixedsyntheticquartet,3seeds,100Adamsteps,lr.05. Max evalMSE .092504→.033404; mean-training final evalMSE .025351. Mean Pearson .385422/.664202 и globalSSIM .253505/.571712 (max/mean). Analyticphasegradient centraldiff maxerror3.97e-11.
+- Достоверность: CONFIRMED ограниченный NumPy trial; PLAUSIBLE общий эффект; torch/NN/PNG8/heldout superiority NEEDS_TEST.
+- Применимость: физическая диагностика и loss официального four-plane single-FFT case; не замена mandatoryоператора.
+- Действие: Предлагается согласовать отдельную training-only mean-amplitude ablation в #1/#3/#5; primary max-amplitude PNG eval и публичныйAPI не менять. Не переносить старые intensity conclusions.
+- Ответственный: playerr456; согласование NinjaMoons/MVRto01.
+- GitHub Issue: #3.
+- Проверка: Actual shared torchFresnel, matchedquartets/seeds/budget, все4metrics/planes, savedDOE PNG8 evaluation, heldoutrealdata. Ни новыйloss поумолчанию, ни общийконтракт безACK.
+- Приоритет: P0.
+
+### R-002-E15
+- ID исследования: R-002.
+- Утверждение: В двух pixel-held полях на3outputpoints/plane Fresnel-vs-RS intensity difference<1%, но fullROI guarantee не установлена.
+- Источник/доказательство: ScalarRS-I kernel изS02 rs.py; Gauss2/4/8,4z,uniformlens иtilt35/mm,xindices0/20/52relcenter,y0. Max4→8relativecomplexchange1.62e-5; intensity relativeL2 vectorof3points0.0399–0.9519%.
+- Достоверность: CONFIRMED узкое наблюдение; NEEDS_TEST полныйROI/другиеmasks.
+- Применимость: физическая диагностика и loss официального four-plane single-FFT case; не замена mandatoryоператора.
+- Действие: Сохранять раздельные quadrature/pixelmodel/paraxial diagnostics. Не называть эти3точки доказательством1–2%во всейрабочейзоне.
+- Ответственный: MVRto01 / ggmaster913.
+- GitHub Issue: #4.
+- Проверка: Если расширяем — converged RS sampling на явно выбранной2DROI/learnedmask, тежеcoords и inputcellmodel; без target gain и generic latencypromise.
+- Приоритет: P0.

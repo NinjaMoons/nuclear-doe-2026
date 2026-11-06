@@ -40,3 +40,7 @@
 ## Результаты нового цикла R-002-A/B
 
 [Атомарные статусы A-C01…C10 и B-C01…C17](reviews/R-002-AB-received-01-review.md) отделены от сырого текста. Подтверждены scale-invariance и производная max при уникальном argmax; опровергнут прогноз MRE A (оба ratio~162.22), энергетическое распределение99/1 между полными z-плоскостями, гарантии Adam optimum/обязательности архитектуры и предлагаемое устранение atan2 singularity. Сравнительная сходимость phase/neural losses и continuous sampling остаются NEEDS_TEST. Новые карточки E08–E11 переданы существующим владельцам.
+
+## Cycle02: sampling, physical references и loss
+
+[Воспроизводимые условия, результаты и пределы](reviews/R-002-cycle02-experiments.md). CONFIRMED: discrete equality не гарантирует continuous/cell accuracy; в заданном cell-lens тесте5%gateB02 не проходит; observed mean-amplitude candidate лучше по aggregate metrics на одном quartet/3seeds. PLAUSIBLE general mean-amplitude improvement; NEEDS_TEST neural/PNG8/realdata/полнаяRSобласть. Уточнён current PR15 head301ea47: primary signal amplitude, прежняя intensity ablation историческая. Mandatory forward/display policy автоматически не менялись.

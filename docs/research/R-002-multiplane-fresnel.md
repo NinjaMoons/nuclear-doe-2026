@@ -69,3 +69,7 @@ R-002 завершится только после project forward/gradient/inde
 ## Синхронизация с PR #15
 
 Во время работы опубликован [PR #15](https://github.com/NinjaMoons/nuclear-doe-2026/pull/15), head e3b25437b2bbd293109f8515a796a69246da9e6d. INTERFACES_V1 уже предлагает формы, output_pitches, A=1, per-plane max display/MSE, global SSIM и повторное чтение PNG8. Это PROPOSED, а не согласованный контракт. R-002 не создаёт альтернативный v1: Gemini A адресно проверяет предложенный loss/display, B — ещё открытые continuous/sampling границы. Общие файлы не менялись.
+
+## Обновление cycle02
+
+Текущий domain изменён в параллельном PR15 на amplitude(v1.1,head301ea47); прежние intensity-loss предложения выше относятся к истории. [Новый отчёт](reviews/R-002-cycle02-experiments.md) содержит независимые C/S/cell/RS diagnostics и ограниченные intensity/amplitude phase-loss ablations. Новое дополнение B-02 сохранено отдельно; [проверка](reviews/R-002-B-received-02-review.md). Обновление не означает завершениеR-002 или принятие production изменений.
