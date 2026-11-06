@@ -86,3 +86,20 @@ def test_invalid_metric_inputs(kind, side):
     else: bad[0, 0, 0, 0, 0] = {"nan": float("nan"), "inf": float("inf"), "negative": -0.01, "above_one": 1.01}[kind]
     with pytest.raises(ValueError):
         evaluate_multiplane(bad, valid) if side == "prediction" else evaluate_multiplane(valid, bad)
+
+
+@pytest.mark.parametrize("correlation", [-1, 1])
+def test_near_constant_float64_preserves_ulp_correlation_sign(correlation):
+    x = torch.full((1, 4, 1, 128, 128), 0.3, dtype=torch.float64)
+    y = x.clone()
+    x[..., 0, 0] = np.nextafter(0.3, np.inf)
+    y[..., 0, 0] = np.nextafter(0.3, np.inf if correlation > 0 else -np.inf)
+    before_x, before_y = x.clone(), y.clone()
+    for score in evaluate_multiplane(x, y)[0]:
+        assert score.pearson_defined is True
+        # The stored pixels have an exact positive/negative affine relation.
+        assert score.pearson == pytest.approx(correlation, rel=0, abs=1e-14)
+        assert math.isfinite(score.ssim)
+        assert score.ssim == pytest.approx(1, rel=0, abs=1e-14)
+    torch.testing.assert_close(x, before_x, rtol=0, atol=0)
+    torch.testing.assert_close(y, before_y, rtol=0, atol=0)

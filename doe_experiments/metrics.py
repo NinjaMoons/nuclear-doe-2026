@@ -30,11 +30,12 @@ def evaluate_multiplane(prediction: torch.Tensor, target: torch.Tensor) -> list[
         batch = []
         for predicted, expected in zip(predicted_batch, target_batch):
             x, y = predicted.ravel(), expected.ravel()
-            # Constant detection must precede mean subtraction: the rounded mean
-            # of a constant such as 0.3 need not equal the stored pixel value.
-            mx = float(x[0]) if np.all(x == x[0]) else float(x.mean())
-            my = float(y[0]) if np.all(y == y[0]) else float(y.mean())
-            dx, dy = x - mx, y - my
+            # Remove a reference pixel before averaging so near-constant
+            # inputs retain ULP-scale variation instead of losing it in DC.
+            shifted_x, shifted_y = x - x[0], y - y[0]
+            mean_x, mean_y = float(shifted_x.mean()), float(shifted_y.mean())
+            mx, my = float(x[0]) + mean_x, float(y[0]) + mean_y
+            dx, dy = shifted_x - mean_x, shifted_y - mean_y
             sx, sy = float(np.dot(dx, dx)), float(np.dot(dy, dy))
             cross = float(np.dot(dx, dy))
             scale_x, scale_y = float(np.max(np.abs(dx))), float(np.max(np.abs(dy)))
