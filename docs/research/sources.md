@@ -44,3 +44,11 @@ Matsushima K., Shimobaba T. (2009), *Band-Limited Angular Spectrum Method for Nu
 - [UNC DeepCGH](https://github.com/UNC-optics/DeepCGH): репозиторий существует и описывает Python/TensorFlow; точная лицензия/патентные условия и доступные веса в этом цикле не установлены. Не повторять исходную строку «патент/custom» как подтверждённый факт.
 
 Эти два кандидата вне активного сравнения R-001 из-за ограниченного бюджета и выбранного PyTorch-направления; это решение по объёму работ, не отрицательная научная оценка.
+
+## S06 — обязательный одношаговый Fresnel (R-002)
+
+[waveprop fresnel.py](https://github.com/ebezzam/waveprop/blob/84c3e7dd50c7193e4c069a7581740ecbf33a3167/waveprop/fresnel.py), функция fresnel_one_step; [util.py ft2/sample_points](https://github.com/ebezzam/waveprop/blob/84c3e7dd50c7193e4c069a7581740ecbf33a3167/waveprop/util.py). Подтверждены два chirp, prefactor, output sampling и NumPy-реализация. Проверить odd-grid centering отдельно; не объявлять этот код готовым PyTorch backend. MIT — S02. Зависимости/S01/S02 licenses повторно сверены; готовые weights для нового кейса не проверялись.
+
+## S07 — официальный кейс
+
+Локальная презентация «AI фотоника.pdf», 7 слайдов, SHA256 a2e4ded9e35cf1b13d3c807b171ad7b50ba946756a7c4a9c09f9dc4e0a46422a; слайды 2 (формула), 3 (метрики), 5 (геометрия), 6 (файлы/PNG и вход/выход). Формула слайда 2 визуально прочитана. Файл найден у Павла в Downloads, не скачан из стороннего источника; не утверждать наличие PDF в GitHub. Краткая постановка также подтверждена текущим сообщением Павла и #14.
