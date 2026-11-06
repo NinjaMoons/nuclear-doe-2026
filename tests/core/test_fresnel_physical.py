@@ -450,3 +450,56 @@ def test_physical_report_protocol_on_known_phase():
     assert [r["peak_yx"] for r in rows] == [(84, 84), (83, 45), (46, 46), (47, 81)]
     for row in rows:
         assert 0 < row["pixel_ref_window_power_ratio"] < 1  # pixel aperture sends light out of the window
+
+
+# --- illustrations for the validation report (#14B stage D) -----------------------------------
+#
+# FRESNEL_FIGURES=artifacts/fresnel_validation python -m pytest tests/core/test_fresnel_physical.py -k figures
+# Writes PNG montages (not committed: artifacts/ is git-ignored). Each tile is |U| scaled by its own
+# maximum (display only). Row 1: point-sampled single-FFT model (the case operator); row 2: continuous
+# full-fill pixelated-SLM reference at the same output points; column 0: the DOE phase.
+
+
+def _tile(image, scale=2):
+    from PIL import Image
+
+    image = np.asarray(image, dtype=np.float64)
+    lo, hi = image.min(), image.max()
+    u8 = np.floor(255 * (image - lo) / (hi - lo if hi > lo else 1) + 0.5).astype(np.uint8)
+    return Image.fromarray(u8, mode="L").resize((N * scale, N * scale), Image.NEAREST)
+
+
+def render_figures(out_dir):
+    from PIL import Image, ImageDraw
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name in ("multifocal 4 points", "lens f=25.3mm + tilt", "grating period 3 px", "checkerboard pi (Nyquist)"):
+        phase, _ = FAMILIES[name]
+        field = torch.polar(torch.ones(1, 1, N, N, dtype=torch.float64), torch.from_numpy(phase)[None, None])
+        shown = np.mod(phase, 2 * np.pi)  # display only: -pi and +pi are the same phase, show both as pi
+        rows = [[_tile(shown)], [_tile(shown)]]
+        for k in range(4):
+            g = CASE.plane(k)
+            rows[0].append(_tile(np.abs(propagate_fresnel(field, g).field.numpy()[0, 0])))
+            rows[1].append(_tile(np.abs(continuous_pixel_reference(phase, g))))
+        size, pad, head = 2 * N, 6, 18
+        canvas = Image.new("L", (5 * size + 6 * pad, 2 * size + 3 * pad + head), 255)
+        draw = ImageDraw.Draw(canvas)
+        draw.text((pad, 3), f"{name}: phase | |U| at 24.1/25.3/26.5/27.7 mm; top: single-FFT model, bottom: pixelated SLM", fill=0)
+        for r, row in enumerate(rows):
+            for c, tile in enumerate(row):
+                canvas.paste(tile, (pad + c * (size + pad), head + pad + r * (size + pad)))
+        path = out_dir / ("fig_" + "".join(ch if ch.isalnum() else "_" for ch in name).strip("_") + ".png")
+        canvas.save(path)
+        written.append(path)
+    return written
+
+
+def test_figures():
+    out = os.environ.get("FRESNEL_FIGURES")
+    if not out:
+        pytest.skip("set FRESNEL_FIGURES=<dir> to render the validation illustrations")
+    for path in render_figures(out):
+        print(path, hashlib.sha256(path.read_bytes()).hexdigest()[:16])
