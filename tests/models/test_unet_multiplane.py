@@ -344,3 +344,104 @@ def test_checkpoint_roundtrip_keeps_dtype_and_global_rng(dtype, tmp_path):
     assert payload["dtype"] == str(dtype).replace("torch.", "")
     x = torch.rand(1, 4, 1, 32, 32, dtype=dtype, generator=torch.Generator().manual_seed(9))
     assert torch.equal(infer_phase(loaded, x), infer_phase(model, x))
+
+
+# --------------------------------------------------------------------------- real Fresnel (integration)
+# These run only where the real single-FFT Fresnel (#14) is importable (integration tree);
+# in a branch without doe_core/fresnel.py they are skipped with an explicit reason.
+# Synthetic box quartets, a few steps: this checks the pipeline, it is NOT a trained model.
+@pytest.fixture(scope="module")
+def fresnel():
+    return pytest.importorskip("doe_core.fresnel",
+                               reason="real propagate_fresnel (#14) is not in this tree").propagate_fresnel
+
+
+@pytest.fixture(scope="module")
+def real_run(fresnel):
+    train, val = quartets(8, seed=300), quartets(2, seed=400)
+    model = build_model(seed=0, **SMALL)
+    before = {k: v.clone() for k, v in model.state_dict().items()}
+    log = train_multiplane(model, train, config=CONFIG, propagate_fn=fresnel, steps=15, lr=3e-3,
+                           batch_size=4, seed=0, val_targets=val, eval_every=5,
+                           train_ids=[f"t{i}" for i in range(8)], val_ids=["v0", "v1"])
+    return model, before, log, train, val
+
+
+@pytest.mark.integration
+def test_integration_real_fresnel_gradients_reach_every_weight(fresnel):
+    model = build_model(seed=0, **SMALL)
+    loss, per_plane = physics_loss(model, quartets(2, seed=0), CONFIG, fresnel)
+    assert torch.isfinite(per_plane).all()
+    loss.backward()
+    for name, p in model.named_parameters():
+        assert p.grad is not None and torch.isfinite(p.grad).all(), name
+        assert p.grad.abs().sum() > 0, f"no real-Fresnel gradient reaches {name}"
+
+
+@pytest.mark.integration
+def test_integration_real_fresnel_training_updates_weights(real_run, fresnel):
+    model, before, log, train, _ = real_run
+    assert any(not torch.equal(before[k], v) for k, v in model.state_dict().items())
+    assert log["weights_delta_l2"] > 0
+    assert all(math.isfinite(h["grad_norm"]) and h["grad_norm"] > 0 for h in log["history"])
+    after = evaluate_model(model, train, config=CONFIG, propagate_fn=fresnel)["loss"]
+    assert after < log["initial"]["train_loss"]
+    assert "fresnel" in log["propagator"]
+
+
+@pytest.mark.integration
+def test_integration_real_fresnel_fresh_process_reload(real_run, fresnel, tmp_path):
+    import os
+    import pathlib
+    import subprocess
+    import sys
+    from doe_models.adam_multiplane import multiplane_amplitudes
+    model, _, log, _, val = real_run
+    ckpt, inp, out = tmp_path / "unet.pt", tmp_path / "in.pt", tmp_path / "out.pt"
+    save_checkpoint(ckpt, model, config=CONFIG, train_log=log, code_commit="integration-test")
+    torch.save(val, inp)
+    script = "\n".join([
+        "import sys, torch",
+        "from doe_core.contracts_v1 import CaseConfigV1",
+        "from doe_core.fresnel import propagate_fresnel",
+        "from doe_models.adam_multiplane import multiplane_amplitudes",
+        "from doe_models.train_multiplane import load_checkpoint, infer_phase",
+        "model, _ = load_checkpoint(sys.argv[1])",
+        "phase = infer_phase(model, torch.load(sys.argv[2], weights_only=True))",
+        "amp = multiplane_amplitudes(phase, CaseConfigV1(), propagate_fresnel)",
+        "torch.save({'phase': phase, 'amplitudes': amp}, sys.argv[3])",
+    ])
+    root = pathlib.Path(__file__).resolve().parents[2]
+    subprocess.run([sys.executable, "-c", script, str(ckpt), str(inp), str(out)], check=True, cwd=root,
+                   env={**os.environ, "PYTHONPATH": str(root)}, capture_output=True, timeout=300)
+    got = torch.load(out, weights_only=True)
+    phase = infer_phase(model, val)
+    assert torch.equal(got["phase"], phase)
+    assert torch.equal(got["amplitudes"], multiplane_amplitudes(phase, CONFIG, fresnel))
+
+
+@pytest.mark.integration
+def test_integration_heldout_inference_through_export(real_run, tmp_path):
+    import json
+    export = pytest.importorskip("doe_experiments.export", reason="export #7 is not in this tree")
+    image = pytest.importorskip("PIL.Image")
+    model, _, log, _, _ = real_run
+    ckpt = tmp_path / "unet.pt"
+    save_checkpoint(ckpt, model, config=CONFIG, train_log=log, code_commit="integration-test")
+    loaded, payload = load_checkpoint(ckpt)
+    heldout = (quartets(1, seed=999) * 255).round().to(torch.uint8)       # held out: new seed
+    paths = []
+    for k in range(4):
+        path = tmp_path / f"heldout_z{k + 1}.png"
+        image.fromarray(heldout[0, k, 0].numpy()).save(path)
+        paths.append(path)
+    phase = infer_phase(loaded, heldout.float() / 255)
+    export.export_run(paths, phase, tmp_path / "run", metadata=checkpoint_metadata(payload), synthetic_test=True)
+    metrics = json.loads((tmp_path / "run" / "metrics.json").read_text())
+    manifest = json.loads((tmp_path / "run" / "manifest.json").read_text())
+    assert metrics["observation"] == "amplitude"
+    assert len(metrics["planes"]) == 4
+    assert all(p["pearson_defined"] and math.isfinite(p["pearson"]) and math.isfinite(p["ssim"])
+               for p in metrics["planes"])
+    assert manifest["metadata"]["checkpoint_sha256"] == payload["sha256"]
+    assert manifest["metadata"]["method"] == "fourinput_unet"
