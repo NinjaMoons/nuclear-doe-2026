@@ -1,0 +1,2 @@
+# Installed only when scientific implementation appears.
+numpy==2.3.4
