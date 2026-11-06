@@ -39,6 +39,10 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q doe_core doe_models doe_experiments ui tests
       - name: Run unit and existing module tests
-        run: python -m pytest -q --strict-markers --ignore=tests/integration/test_submission_roundtrip.py
-      - name: Mandatory v1 submission roundtrip (real modules, no skip)
+        run: python -m pytest -q --strict-markers --ignore=tests/integration/test_submission_roundtrip.py --ignore=tests/integration/test_fresnel_reference.py
+      - name: Mandatory independent Fresnel physics (direct sum, no skip)
+        if: ${{ !cancelled() }}
+        run: python -m pytest tests/integration/test_fresnel_reference.py -q --strict-markers
+      - name: Mandatory v1 DATA roundtrip (real modules, no skip)
+        if: ${{ !cancelled() }}
         run: python -m pytest tests/integration/test_submission_roundtrip.py -q --strict-markers

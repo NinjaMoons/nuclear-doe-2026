@@ -17,7 +17,8 @@ import numpy as np
 import torch
 
 from doe_core.contracts_v1 import (CaseConfigV1, FresnelField,
-    RECONSTRUCTION_POLICY_V1, SSIM_POLICY_V1)
+    RECONSTRUCTION_POLICY_V1, SSIM_POLICY_V1, CONTRACT_VERSION_V1, OBSERVATION_V1)
+from doe_core.observables import FieldObservables, field_observables
 from doe_experiments.phase_codec import load_doe_png, save_doe_png
 
 
@@ -25,7 +26,7 @@ from doe_experiments.phase_codec import load_doe_png, save_doe_png
 class ExportComponents:
     propagate: Callable
     load_quartet: Callable
-    intensity_to_u8: Callable
+    amplitude_to_u8: Callable
     save_reconstructions: Callable
     evaluate: Callable
 
@@ -34,10 +35,10 @@ def production_components() -> ExportComponents:
     # No fallback simulator, stub, codec or metric is selected in production.
     from doe_core.fresnel import propagate_fresnel
     from doe_experiments.data import load_png_quartet
-    from doe_experiments.png_io import intensity_to_u8, save_reconstructions
+    from doe_experiments.png_io import amplitude_to_u8, save_reconstructions
     from doe_experiments.metrics import evaluate_multiplane
     return ExportComponents(propagate_fresnel, load_png_quartet,
-                            intensity_to_u8, save_reconstructions, evaluate_multiplane)
+                            amplitude_to_u8, save_reconstructions, evaluate_multiplane)
 
 
 def sha256(path: str | Path) -> str:
@@ -66,9 +67,9 @@ def _quartet(value: torch.Tensor) -> torch.Tensor:
 
 
 def _reconstruct(phase: torch.Tensor, config: CaseConfigV1,
-                 propagate: Callable) -> torch.Tensor:
+                 propagate: Callable) -> FieldObservables:
     field = torch.exp(1j * phase)  # Explicit illumination A=1, same field for all z.
-    outputs = []
+    amplitudes, intensities = [], []
     for index in range(4):
         geometry = config.plane(index)
         result = propagate(field, geometry)
@@ -81,22 +82,21 @@ def _reconstruct(phase: torch.Tensor, config: CaseConfigV1,
             raise ValueError("wrong native output sampling")
         if result.distance_m != geometry.distance_m:
             raise ValueError("propagator returned the wrong plane distance")
-        intensity = result.field.abs().square()
-        if not torch.isfinite(intensity).all():
-            raise ValueError("nonfinite reconstructed intensity")
-        outputs.append(intensity)
-    return torch.stack(outputs, dim=1)
+        measurement = field_observables(result.field)
+        amplitudes.append(measurement.amplitude)
+        intensities.append(measurement.intensity)
+    return FieldObservables(torch.stack(amplitudes, dim=1), torch.stack(intensities, dim=1))
 
 
 def _display(raw: torch.Tensor, conversion: Callable) -> tuple[np.ndarray, list[float], torch.Tensor]:
     values = raw.detach().cpu().numpy().astype(np.float64)
     maxima = values.max(axis=(-2, -1), keepdims=True)
     if not np.isfinite(values).all() or (values < 0).any() or (maxima <= 1e-12).any():
-        raise ValueError("invalid or zero intensity for display policy")
+        raise ValueError("invalid or zero amplitude for display policy")
     expected = np.floor(255 * values / maxima + 0.5).astype(np.uint8)
     actual = conversion(raw)
     if not isinstance(actual, np.ndarray) or actual.dtype != np.uint8 or actual.shape != values.shape:
-        raise ValueError("intensity_to_u8 must return uint8 with matching 5D shape")
+        raise ValueError("amplitude_to_u8 must return uint8 with matching 5D shape")
     if not np.array_equal(actual, expected):
         raise ValueError("PNG conversion violates the fixed evaluation policy")
     return actual, maxima.reshape(4).tolist(), torch.from_numpy(values / maxima)
@@ -149,10 +149,12 @@ def export_run(target_paths: list[Path], phase_rad: torch.Tensor, output_dir: Pa
     doe_path = save_doe_png(phase_rad, output_dir / "DOE.png")
     decoded = load_doe_png(doe_path, dtype=phase_rad.dtype, device=phase_rad.device)
     with torch.no_grad():
-        quantized_raw = _reconstruct(decoded, config, components.propagate)
-        continuous_raw = _reconstruct(phase_rad.detach(), config, components.propagate)
-        quantized_u8, maxima, quantized_float = _display(quantized_raw, components.intensity_to_u8)
-        continuous_u8, _, continuous_float = _display(continuous_raw, components.intensity_to_u8)
+        quantized_observables = _reconstruct(decoded, config, components.propagate)
+        continuous_observables = _reconstruct(phase_rad.detach(), config, components.propagate)
+        quantized_raw = quantized_observables.amplitude
+        continuous_raw = continuous_observables.amplitude
+        quantized_u8, maxima, quantized_float = _display(quantized_raw, components.amplitude_to_u8)
+        continuous_u8, _, continuous_float = _display(continuous_raw, components.amplitude_to_u8)
     reconstruction_paths = [Path(p) for p in components.save_reconstructions(quantized_u8, output_dir)]
     if len(reconstruction_paths) != 4 or len(set(p.resolve() for p in reconstruction_paths)) != 4:
         raise ValueError("save_reconstructions must return four distinct ordered PNG paths")
@@ -173,6 +175,7 @@ def export_run(target_paths: list[Path], phase_rad: torch.Tensor, output_dir: Pa
              for q, c in zip(quantized_float_metrics, continuous_float_metrics)]
     doe_hash = sha256(doe_path)
     metrics = {"primary_source": "reloaded_uint8_PNG_from_reloaded_DOE",
+               "observation": OBSERVATION_V1, "contract": CONTRACT_VERSION_V1,
                "policy": RECONSTRUCTION_POLICY_V1, "ssim_policy": SSIM_POLICY_V1,
                "planes": [{"index": i, "distance_m": config.distances_m[i],
                            "doe_sha256": doe_hash, "reconstruction": reconstruction_paths[i].name,
@@ -184,11 +187,14 @@ def export_run(target_paths: list[Path], phase_rad: torch.Tensor, output_dir: Pa
                                       "planes": delta}}
     _write_json(output_dir / "metrics.json", metrics)
     np.savez_compressed(output_dir / "raw.npz", phase_continuous=phase_rad.detach().cpu().numpy(),
-                        phase_decoded=decoded.cpu().numpy(), intensity_quantized=quantized_raw.cpu().numpy(),
-                        intensity_continuous=continuous_raw.cpu().numpy())
+                        phase_decoded=decoded.cpu().numpy(), amplitude_quantized=quantized_raw.cpu().numpy(),
+                        amplitude_continuous=continuous_raw.cpu().numpy(),
+                        intensity_quantized=quantized_observables.intensity.cpu().numpy(),
+                        intensity_continuous=continuous_observables.intensity.cpu().numpy())
     files = [*copied_targets, doe_path, *reconstruction_paths,
              output_dir / "metrics.json", output_dir / "raw.npz"]
-    manifest = {"schema_version": 1, "case_contract": "v1", "completed": True,
+    manifest = {"schema_version": 2, "case_contract": CONTRACT_VERSION_V1, "observation": OBSERVATION_V1,
+                "completed": True,
                 "synthetic_test": bool(synthetic_test), "config": asdict(config),
                 "output_pitches_m": [config.plane(i).output_pitch_m(128, 128) for i in range(4)],
                 "reconstruction_policy": RECONSTRUCTION_POLICY_V1, "ssim_policy": SSIM_POLICY_V1,

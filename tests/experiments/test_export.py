@@ -66,6 +66,7 @@ def test_saved_doe_is_primary_source_and_hashes_reproducible(tmp_path):
     manifest = export_run(inputs, phase, output, components=components,
                           metadata={"seed": 17}, synthetic_test=True)
     assert manifest["completed"] and manifest["synthetic_test"]
+    assert manifest["observation"] == "amplitude" and manifest["case_contract"] == "1.1-amplitude"
     decoded = load_doe_png(output / "DOE.png")
     assert not torch.equal(decoded, phase)
     assert len(calls) == 8
@@ -83,7 +84,9 @@ def test_saved_doe_is_primary_source_and_hashes_reproducible(tmp_path):
     export_run(inputs, decoded, repeat, components=components, synthetic_test=True)
     for i in range(4):
         assert sha256(output / f"reconstructed_{i+1:02d}.png") == sha256(repeat / f"reconstructed_{i+1:02d}.png")
-    assert np.load(output / "raw.npz", allow_pickle=False)["intensity_quantized"].shape == (1, 4, 1, 128, 128)
+    arrays = np.load(output / "raw.npz", allow_pickle=False)
+    assert arrays["amplitude_quantized"].shape == (1, 4, 1, 128, 128)
+    np.testing.assert_allclose(arrays["intensity_quantized"], arrays["amplitude_quantized"]**2)
     with pytest.raises(FileExistsError):
         export_run(inputs, phase, output, components=components)
 
@@ -91,7 +94,7 @@ def test_saved_doe_is_primary_source_and_hashes_reproducible(tmp_path):
 def test_violating_evaluation_policy_rejected_without_success_manifest(tmp_path):
     inputs = targets(tmp_path)
     components = fixture_components([])
-    components = replace(components, intensity_to_u8=lambda raw: np.zeros(raw.shape, dtype=np.uint8))
+    components = replace(components, amplitude_to_u8=lambda raw: np.zeros(raw.shape, dtype=np.uint8))
     output = tmp_path / "bad_policy"
     with pytest.raises(ValueError, match="evaluation policy"):
         export_run(inputs, torch.zeros((1, 1, 128, 128)), output, components=components)
@@ -125,3 +128,19 @@ def test_cli_reconstruct_explicit_precision_and_failure_without_modules(tmp_path
     failed = tmp_path / "must_not_exist"
     assert cli.main(["adam", "--targets", *map(str, inputs), "--output-dir", str(failed)]) == 2
     assert not failed.exists()
+
+
+def test_export_png_uses_amplitude_not_squared_observable(tmp_path):
+    inputs = targets(tmp_path)
+    gen = torch.Generator().manual_seed(81)
+    phase = (torch.rand((1,1,128,128), generator=gen, dtype=torch.float64) * 2 - 1) * 3.14
+    output = tmp_path / "amplitude_regression"
+    export_run(inputs, phase, output, components=fixture_components([]), synthetic_test=True)
+    raw = np.load(output / "raw.npz", allow_pickle=False)
+    a, i = raw["amplitude_quantized"], raw["intensity_quantized"]
+    expected_a = np.floor(255 * a / a.max(axis=(-2,-1),keepdims=True) + 0.5).astype(np.uint8)
+    wrong_i = np.floor(255 * i / i.max(axis=(-2,-1),keepdims=True) + 0.5).astype(np.uint8)
+    assert np.any(expected_a != wrong_i)
+    for plane in range(4):
+        with Image.open(output / f"reconstructed_{plane+1:02d}.png") as image:
+            np.testing.assert_array_equal(np.array(image), expected_a[0,plane,0])

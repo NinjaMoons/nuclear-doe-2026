@@ -7,7 +7,7 @@ import time
 
 import torch
 
-from doe_core.contracts_v1 import CaseConfigV1, MultiPlaneResult
+from doe_core.contracts_v1 import CaseConfigV1, MultiPlaneResult, OBSERVATION_V1
 from doe_experiments.export import export_run, production_components
 from doe_experiments.phase_codec import load_doe_png
 
@@ -40,6 +40,12 @@ def main(argv: list[str] | None = None) -> int:
                                            steps=args.steps, lr=args.lr, seed=args.seed)
             if not isinstance(result, MultiPlaneResult):
                 raise ValueError("solver must return MultiPlaneResult")
+            if result.metadata.get("observation") != OBSERVATION_V1:
+                raise ValueError("solver must declare observation=amplitude; old intensity loss is not accepted")
+            if result.amplitudes.shape != targets.shape or result.intensities.shape != targets.shape:
+                raise ValueError("solver must return amplitude and diagnostic intensity with target shape")
+            if not torch.allclose(result.intensities, result.amplitudes.square(), rtol=1e-5, atol=1e-7):
+                raise ValueError("solver intensity must equal amplitude squared")
             phase = result.phase_rad
             metadata = {"method": "adam", "seed": args.seed, "steps": args.steps, "lr": args.lr,
                         "solver_elapsed_s": time.perf_counter() - started,

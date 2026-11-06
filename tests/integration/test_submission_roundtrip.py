@@ -1,4 +1,8 @@
-"""Mandatory real v1 gate. Missing implementations FAIL; there are no stubs/skips."""
+"""Mandatory DATA roundtrip on real modules; this is NOT a physics oracle.
+
+Independent scientific acceptance additionally requires test_fresnel_reference.py.
+Missing implementations FAIL; there are no stubs/skips.
+"""
 import importlib
 import json
 import math
@@ -47,6 +51,11 @@ def test_submission_roundtrip(tmp_path):
     manifest = json.loads((output / "manifest.json").read_text())
     metrics = json.loads((output / "metrics.json").read_text())
     assert manifest["completed"] and manifest["synthetic_test"]
+    assert manifest["case_contract"] == "1.1-amplitude" and manifest["observation"] == "amplitude"
+    assert metrics["observation"] == "amplitude"
+    history = manifest["metadata"]["loss_history"]
+    assert len(history) >= 2 and all(math.isfinite(value) for value in history)
+    assert min(history[1:]) < history[0], "real shared-phase Adam must improve its initial amplitude loss"
     assert manifest["config"]["distances_m"] == [0.0241, 0.0253, 0.0265, 0.0277]
     assert len(metrics["planes"]) == 4
     phase = load_doe_png(output / "DOE.png", dtype=torch.float32)
@@ -55,8 +64,9 @@ def test_submission_roundtrip(tmp_path):
         with Image.open(output / pair["reconstruction"]) as image:
             assert image.mode == "L" and image.size == (128, 128) and image.format == "PNG"
             restored = np.array(image)
+        # Same production forward verifies dataflow/PNG, not correctness of physics.
         field = propagate_fresnel(torch.exp(1j * phase), config.plane(index)).field
-        raw = field.abs().square().detach().cpu().numpy().astype(np.float64)
+        raw = field.abs().detach().cpu().numpy().astype(np.float64)
         expected = np.floor(255 * raw / raw.max() + 0.5).astype(np.uint8)[0, 0]
         np.testing.assert_array_equal(restored, expected)
         assert pair["doe_sha256"] == sha256(output / "DOE.png")

@@ -65,8 +65,9 @@ class FresnelPropagator(Protocol):
 
 @dataclass
 class MultiPlaneResult:
-    """One phase [B,1,128,128]; continuous intensities [B,4,1,128,128]."""
+    """One phase; PRIMARY amplitudes and diagnostic intensities [B,4,1,128,128]."""
     phase_rad: Tensor
+    amplitudes: Tensor
     intensities: Tensor
     loss_history: list[float]
     elapsed_s: float
@@ -81,5 +82,8 @@ class PairMetricsV1:
     pearson_defined: bool
 
 
-RECONSTRUCTION_POLICY_V1 = "per_plane_max_round_half_up_u8_v1"
+CONTRACT_VERSION_V1 = "1.1-amplitude"
+OBSERVATION_V1 = "amplitude"
+LOSS_POLICY_V1 = "per_plane_max_amplitude_mse_v1_1"
+RECONSTRUCTION_POLICY_V1 = "per_plane_max_amplitude_round_half_up_u8_v1_1"
 SSIM_POLICY_V1 = "global_population_L1_K1_0.01_K2_0.03_v1"
