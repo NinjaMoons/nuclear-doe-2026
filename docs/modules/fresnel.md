@@ -7,11 +7,14 @@
 ```python
 from doe_core.contracts_v1 import CaseConfigV1, FresnelGeometry
 from doe_core.fresnel import propagate_fresnel, sampling_report
+from doe_core.observables import field_observables
 
 case = CaseConfigV1()
 field = torch.polar(torch.ones_like(phase), phase)       # phase [B,1,128,128], рад; A = 1
 planes = [propagate_fresnel(field, case.plane(i)) for i in range(4)]   # одна и та же маска
-intensity = planes[0].field.abs() ** 2                  # сырая, без нормировки
+obs = field_observables(planes[0].field)
+amplitude = obs.amplitude      # |U|: PRIMARY (labels, loss, PNG, Pearson/SSIM) в v1.1, сырая, без нормировки
+intensity = obs.intensity      # |U|² = amplitude²: только мощность/диагностика
 dy_out, dx_out = planes[0].output_pitch_m               # метры, зависят от z
 ```
 
@@ -43,7 +46,7 @@ Uout = exp(i2πz/λ)/(iλz) · chirp_out · sqrt(H·W)·dy·dx · F
 Uout(y_p, x_q) = exp(ikz)/(iλz) · Σ_{m,n} U(v_m, u_n) · exp(iπ((x_q−u_n)² + (y_p−v_m)²)/(λz)) · dy·dx
 ```
 
-потому что `x_q·u_n/(λz) = (q−W/2)(n−W/2)/W`. На этом основан главный тест.
+потому что `x_q·u_n/(λz) = (q−W//2)(n−W//2)/W` (целочисленный центр `W//2`, в том числе для нечётных W; так же по y с `H//2`). На этом основан главный тест.
 
 Единицы: все длины в метрах, фаза в радианах. Ровно один `fft2` на вызов (на плоскость). Нет padding, crop, ресэмплинга, bandlimit и нормировки. Множители `chirp_in`, `chirp_out` и несущая `exp(ikz)` (≈ 3e5 рад) строятся в float64 на CPU при каждом вызове (кэша нет, inference-safe), затем приводятся к dtype/device поля.
 
