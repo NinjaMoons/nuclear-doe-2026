@@ -38,5 +38,7 @@ jobs:
           python -m pip install -r requirements-science.txt
       - name: Check Python syntax
         run: python -m compileall -q doe_core doe_models doe_experiments ui tests
-      - name: Run all tests
-        run: python -m pytest -q --strict-markers
+      - name: Run unit and existing module tests
+        run: python -m pytest -q --strict-markers --ignore=tests/integration/test_submission_roundtrip.py
+      - name: Mandatory v1 submission roundtrip (real modules, no skip)
+        run: python -m pytest tests/integration/test_submission_roundtrip.py -q --strict-markers
