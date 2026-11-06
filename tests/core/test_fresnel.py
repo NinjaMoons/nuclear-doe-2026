@@ -143,6 +143,29 @@ def test_weighted_loss_gradient_matches_direct_sum(shape, pitch):
     assert g_fft.abs().max() > 0
 
 
+def test_modulus_loss_gradient_matches_direct_sum_and_is_finite_at_zeros():
+    # Consumers may need |U| (field modulus) instead of |U|^2; it is taken outside the
+    # propagator from the complex field. torch.abs has a zero subgradient at U = 0, so the
+    # gradient stays finite even when output samples vanish.
+    g = geom(2.5e-3, (8e-6, 11e-6))
+    gen = torch.Generator().manual_seed(12)
+    weights = torch.rand(2, 1, 5, 7, generator=gen, dtype=torch.float64)
+    phase0 = (2 * torch.rand(2, 1, 5, 7, generator=gen, dtype=torch.float64) - 1) * math.pi
+
+    def grad(fn):
+        phase = phase0.clone().requires_grad_(True)
+        (fn(torch.polar(torch.ones_like(phase), phase)).abs() * weights).sum().backward()
+        return phase.grad
+
+    g_fft = grad(lambda f: propagate_fresnel(f, g).field)
+    g_ref = grad(lambda f: direct_sum_torch(f, g))
+    assert rel_l2(g_fft.numpy(), g_ref.numpy()) < 1e-10
+
+    leaf = torch.zeros(1, 1, 4, 6, dtype=torch.complex128, requires_grad=True)
+    propagate_fresnel(leaf, geom(2e-3, (12e-6, 9e-6))).field.abs().sum().backward()
+    assert torch.isfinite(leaf.grad).all()
+
+
 # --- coefficients, phase factors, coordinates -------------------------------------------
 
 
