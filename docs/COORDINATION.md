@@ -1,46 +1,36 @@
-# Координация: официальный кейс v1
+# Координация v1.1-amplitude
 
-**Предложение на согласование; реализацию новых API начать после review/ACK и merge контракта v1.** Владелец Павел/@NinjaMoons. Официальный источник и открытые соглашения: [требования](CASE_REQUIREMENTS.md), [v1](INTERFACES_V1.md). v0/ASM сохраняется, общие v0 API не меняются.
+Общие контракты меняет только @NinjaMoons. Новые ACK на текущий SHA PR #15 обязательны: старые intensity ACK не действуют. Черновики и независимая подготовка разрешены; merge после согласования. Фактические статусы и ETA обновляются в Issues, а не считаются готовностью по старому тексту этого файла.
 
-## Текущее состояние
-main=def3b3d (инфраструктура). PR13=1d050e4, open/CHANGES_REQUESTED: inference-cache/autograd и описание2D sampling; зелёный CI не устраняет эти замечания. PR12=ed8f1a3 — прежний одноплоскостной smoke, не официальная приёмка. PR11 — отдельное исследование. Другие PR без отдельного согласования не сливать.
+## Исключительные области записи
 
-По API: ggmaster913 и MVRto01 имеют write; playerr456 принял приглашение, write подтверждён19:40МСК; #3/#5 назначены ему. Исполнители пока не оставили новых status replies. Старый checkpoint19:15 прошёл без подтверждений; обещание полной интеграции20:30 на этих данных не подтверждено.
-
-## Непересекающееся владение файлами v1
-| Issue/владелец | Разрешённые пути |
+| Владелец / Issue | Разрешённые пути |
 |---|---|
-| #1 координатор | doe_core/contracts.py (v0 не ломать), doe_core/contracts_v1.py, tests/infrastructure/**, docs/INTERFACES*.md, docs/CASE_REQUIREMENTS.md, docs/spec/AI-photonics-case.pdf, docs/COORDINATION.md, docs/TASKS.md, docs/STATUS.md, AGENTS.md, CLAUDE.md, README.md, .github/**, pyproject.toml, requirements*.txt, */__init__.py |
-| #2 ggmaster913, legacyASM | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
-| #14 ggmaster913, Fresnel | doe_core/fresnel.py, tests/core/test_fresnel.py, docs/modules/fresnel.md |
-| #3 playerr456, sharedAdam | doe_models/adam_multiplane.py, tests/models/test_adam_multiplane.py, docs/modules/adam.md |
-| #5 playerr456, neural4to1 | doe_models/unet_multiplane.py, doe_models/train_multiplane.py, tests/models/test_unet_multiplane.py, docs/modules/unet.md |
-| #4 MVRto01, PNG/метрики | doe_experiments/data.py, doe_experiments/png_io.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_png_io.py, tests/experiments/test_metrics.py, docs/modules/metrics.md |
-| #6 координатор, benchmark | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
-| #7 координатор, codec/CLI | doe_experiments/phase_codec.py, doe_experiments/export.py, doe_experiments/cli.py, tests/experiments/test_phase_codec.py, tests/experiments/test_export.py, tests/integration/test_submission_roundtrip.py, ui/app.py, tests/ui/**, docs/modules/demo.md |
-| #8 координатор, сдача | docs/submission/**; manifest/bundle не коммитится как generateddata |
+| NinjaMoons #1 | doe_core/contracts.py, doe_core/contracts_v1.py, doe_core/observables.py, tests/core/test_observables.py, tests/infrastructure/**, docs/INTERFACES*.md, docs/CASE_REQUIREMENTS.md, docs/spec/**, docs/COORDINATION.md, docs/TASKS.md, docs/STATUS.md, AGENTS.md, CLAUDE.md, README.md, .github/**, pyproject.toml, requirements*.txt, */__init__.py |
+| ggmaster913 #2 | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
+| ggmaster913 #14 | doe_core/fresnel.py, tests/core/test_fresnel.py, tests/core/test_fresnel_physical.py, docs/modules/fresnel.md, docs/modules/fresnel_validation.md |
+| playerr456 #3 | doe_models/adam_multiplane.py, tests/models/test_adam_multiplane.py, docs/modules/adam.md |
+| playerr456 #5 | doe_models/unet_multiplane.py, doe_models/train_multiplane.py, tests/models/test_unet_multiplane.py, docs/modules/unet.md |
+| MVRto01 #4 | doe_experiments/data.py, doe_experiments/png_io.py, doe_experiments/metrics.py, doe_experiments/corpus.py, tests/experiments/test_data.py, tests/experiments/test_png_io.py, tests/experiments/test_metrics.py, tests/experiments/test_corpus.py, docs/modules/metrics.md |
+| NinjaMoons #7 | doe_experiments/phase_codec.py, doe_experiments/export.py, doe_experiments/cli.py, tests/experiments/test_phase_codec.py, tests/experiments/test_export.py, tests/integration/**, ui/app.py, tests/ui/**, docs/modules/demo.md |
+| NinjaMoons #6 | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
+| NinjaMoons #8 | docs/submission/**; generated bundles вне git |
 
-PNG_io MVR сохраняет входные/восстановленные яркостные PNG; phase_codec только координатор кодирует DOE. Метрики MVR, benchmark координатор. Никаких параллельных правок общего conftest.py/contracts/__init__/requirements/workflow. Потребителю нужна правка общего файла — запрос в Issue координатору. Один владелец может последовательно вести свои Issues, но PR/ветка отдельны. Старые v0 файлы моделей, если появятся, не переопределять скрыто; сохранять отдельно.
+PNG IO MVR сохраняет amplitude images; phase_codec координатора кодирует фазу DOE. Общие conftest/__init__/requirements/CI не редактируются исполнителями. Корпус использует существующие Fresnel/codec/IO/метрики, не копирует их.
 
-## Старт, зависимости и согласование
-Координатор публикует v1 PR. Павел и владельцы gg/player/MVR подтверждают shapes, сигнатуры, геометрию и PNG/метрики policy в комментариях. До ACK/merge новой реализации не начинать. Ветка Fresnel codex/14-fresnel-single-fft готовится отдельно; владелец обновляет её отmain после согласования. Player может начинать unit tests на локальном differentiable stub после ACK, не ожидая готовогоFresnel; настоящая приёмка требует#14 и#4. MVR независим отготовности физики и моделей. Нейросеть#5 — обязательная частьсдачи, не украшениеAdam.
+## Постоянная очередь в существующих Issues
 
-ОднаIssue — одна своя ветка — одинPR. Чужие ветки не менять, результаты передавать с currenthead/tests/limitations. Пересечения путей выше допустимы только у одного координатора; его собственные ветки менять последовательно.
+| Исполнитель | ACTIVE | READY NEXT | Технические условия следующего этапа |
+|---|---|---|---|
+| ggmaster913 | #14A ревью/исправления PR #18, новый amplitude ACK | #14B физическая валидация / sampling в своих новых test/doc paths | Опубликованный forward, базовые complex/direct-sum/gradient проверки; замечания независимого ревью учтены |
+| playerr456 | #3 amplitude migration PR #17 + реальная Adam приёмка | #5 skeleton сейчас; train после gates | Skeleton не импортирует отсутствующие данные. Обучение только после физического gate, amplitude данных и baseline; короткий CPU smoke, затем checkpoint |
+| MVRto01 | #4A ACK + PNG/Pearson/SSIM + первый PR | #4B пилот64 A +64 B | Каркас генератора/manifest/split сейчас; A генерируется только проверенным Fresnel из decoded DOE; готовые IO/codec/метрики |
+| NinjaMoons | #7 amplitude export, два gate, настоящий E2E | #6 benchmark; #8 шаблон состава сдачи | Каркасы и сценарии сейчас; измерения после настоящего baseline; комплект сдачи после trained model/checkpoint и согласования |
 
-## Следующие два часа после согласования v1
+Одна ACTIVE задача на человека. READY NEXT содержит постановку/приёмку/пути в своей Issue; разрешённая подготовка не подменяет прохождение технических условий. После принятия ACTIVE участник берёт NEXT при выполнении указанных условий, без нового поручения Павла. Блокер публикуется с конкретной зависимостью и своим ETA; неизвестный ETA не выдумывается. PR и финальная сдача по-прежнему требуют review/согласования.
 
-- 0–15 минут: ACK владельцев; доступ player уже подтверждён. Подтвердить доступность и ETA. gg адресно завершает замечания ASM, затем переходит в отдельную Fresnel-ветку; большие ASM/library исследования не блокируют кейс.
-- 15–60 минут: параллельно Fresnel/direct-sum tests, PNG/Pearson/SSIM и shared-Adam stub; координатор готовит codec и roundtrip-приёмку.
-- 60–90 минут: первая попытка4syntheticPNG -> oneDOE.png -> reload ->4FresnelPNG ->8метрик. Это численный baseline, не завершение кейса.
-- 90–120 минут: player начинает минимальное physics-informed обучение4->1 и сохраняет checkpoint; координатор сравнивает continuous/uint8 и готовит benchmark. Результат зависит от ресурсов и исполнителей. При отсутствии доступности фиксировать blocker/ETA и обратиться к Павлу о переназначении; не писать чужие модули параллельно.
+## Пилот данных и качество
 
-Контроль20:30МСК6ноября — статус новой физики, данных и Adam; полная интеграция не гарантирована. Срока кейса в PDF нет. Рабочий ориентир сайта7ноября21:00МСК требует сверки.
+Только64 A +64 B; это тестовый пилот. A: phase -> DOE uint8 -> decode -> одно поле на4z -> amplitude PNG; label phi_q, не исходная непрерывная phase. B: произвольные procedural изображения без выдуманной phase ground truth. Split по parent/source ID до аугментаций; стабильный SHA256, seed/config/provenance, version1.1-amplitude; старые intensity корпуса не смешивать. Предварительный split48/8/8 на корпус, группировки не пересекаются. Никаких5120 примеров или длительного обучения до малого smoke.
 
-## Проверки и ограничения процесса
-
-Восемь старых и восемь новых contract tests не доказывают физику или нейросеть. Module tests, независимый reference, PNG roundtrip и checkpoint/evaluation проверяются отдельно. Branch protection/rulesets недоступны на текущем приватном тарифе(403); review/checks обязательны по процессу команды. Платные API и длительное обучение без согласования не запускать. Постоянный watcher и новая система управления не создаются. Каждый запуск начинается с актуального GitHub.
-
-
-## Общий amplitude helper — v1.1
-
-Только координатор: doe_core/observables.py и tests/core/test_observables.py. Он задаёт обе величины без повторения propagation; владельцы #3/#4/#5/#7/#6 переиспользуют его. Новые ACK обязательны наSHA v1.1-amplitude, старыеintensityACK не считаются согласием с новой семантикой. Метод Fresnel/координаты/phasecodec неизменны.
+Два обязательных независимых по назначению gate описаны в INTERFACES_V1: physics/direct sum и data roundtrip. Отсутствующие зависимости FAIL, не skip. ASM сохраняется отдельно, не выдаётся за условие single-FFT Fresnel. Discrete reference не доказывает непрерывную оптику. Branch protection ранее недоступен(403); обязательность проверок обеспечивается workflow и review, без заявления об enforced protection. Срок кейса и реальные4PNG пока требуют подтверждения. Каждый запуск начинает с актуального GitHub; постоянный watcher не заявляется.

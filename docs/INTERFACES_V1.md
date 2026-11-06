@@ -1,6 +1,6 @@
 # Контракт v1.1-amplitude: один DOE для четырёх Fresnel-плоскостей
 
-**V1.1 PROPOSED — старые ACK по intensity недействительны; требуется согласование Павла и владельцев #14/#3/#4/#5 до реализации зависимых модулей.** Основание: [официальные требования](CASE_REQUIREMENTS.md). v0 (doe_core/contracts.py и ASM) сохраняется; его API/тесты не изменяются. Общие v1-типы: doe_core/contracts_v1.py, владелец только координатор.
+**V1.1 PROPOSED — старые ACK по intensity недействительны; требуется ACK владельцев #14/#3/#4/#5 на новый SHA и согласование merge Павлом.** Независимые черновики в своих областях разрешены сейчас; физическая приёмка, генерация корпуса A и обучение требуют настоящих проверенных зависимостей. Основание: [официальные требования](CASE_REQUIREMENTS.md). v0 (doe_core/contracts.py и ASM) сохраняется; его API/тесты не изменяются. Общие v1-типы: doe_core/contracts_v1.py, владелец только координатор.
 
 ## Наблюдаемая величина v1.1 — обязательное исправление
 
@@ -87,6 +87,13 @@ phi_q = -pi + 2*pi*q/255
 Единственный обязательный путь: load4PNG -> Adam/model -> oneDOE -> save DOE.png -> RELOAD DOE.png -> decode -> SAME FIELD at4z -> raw amplitudes -> amplitude_to_u8 -> save4PNG -> RELOAD4PNG -> Pearson/SSIM -> manifest. Float phase сама по себе не служит источником итоговых PNG. Для B>1 отдельный каталог наквартет; в каждом ровноодин DOE.png и4recon PNG.
 
 Artifacts: исходные4PNG, DOE.png, reconstructed_01..04.png, metrics.json(perplane+continuous/quantized flags), raw arrays безpickle, manifest с config/SI/output pitches, paths+SHA256, source/data flags, seed, gitSHA, dependencies, model/checkpoint hash/training provenance, timing_scope и командой воспроизведения. Данные/веса вне обычных gitcommits, согласованное хранилище/Release; ссылка+hashвmanifest. Benchmark сравнивает одинquartet/метод/геометрию/precision/device и качество экспортированногоDOE; training/load/warmup/synthesis/IO раздельно.
+
+## Два обязательных gate научной приёмки
+
+1. **Независимая физика** — `tests/integration/test_fresnel_reference.py`, координатор. Production single-FFT Fresnel сравнивается с прямым интегральным ядром exp(i*pi*((x2-x1)^2+(y2-y1)^2)/(lambda*z)) в матричной сумме без FFT и без production chirp/grid/pitch helpers. Проверяются complex field (не только нормированная амплитуда), независимые pitches, градиент по фазе, odd/rectangular anisotropic grids и все четыре z на128x128. Коэффициент exp(ikz)/(i*lambda*z), площади пикселей и знак не могут исчезнуть за PNG-нормировкой. Fault-injection: неверные scale/sign/orientation обязаны не проходить этот oracle. Это подтверждает заданный дискретный оператор, а не точность непрерывной оптики/ПВМС.
+2. **Передача данных / roundtrip** — `tests/integration/test_submission_roundtrip.py`, координатор. Только настоящие #14/#3/#4: 4PNG -> shared Adam -> DOE.png -> reload -> 4Fresnel -> 4amplitude PNG -> reload -> Pearson/SSIM. Повторный вызов того же propagator здесь проверяет передачу данных и сохранение, НЕ является независимым физическим oracle.
+
+Оба gate обязательны, запускаются отдельными CI steps, отсутствующий реальный модуль даёт FAIL, а не skip/stub. Оба должны пройти на одном интеграционном tree до научной приёмки; зелёный unit CI отдельного PR недостаточен. Локальный pre-merge integration snapshot с точными SHA допустим без merge чужих веток. Реальное обучение и выпуск данных A — после физического gate.
 
 ## Согласование
 Павел, ggmaster913, playerr456, MVRto01 подтверждают shapes/signatures, геометрию, codec и предложенные display/SSIM conventions в PR. После merge фиксируем commit и запускаем зависимые задачи. Изменение общего файла только координатором. Текущий PR не реализует научные модули и не доказывает качество; один Adam baseline не завершает обязательный нейросетевой кейс.
