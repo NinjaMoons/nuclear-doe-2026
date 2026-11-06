@@ -14,7 +14,7 @@
 | NinjaMoons #4A, передано Павлом 6 ноября | doe_experiments/data.py, doe_experiments/png_io.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_png_io.py, tests/experiments/test_metrics.py |
 | MVRto01 #4B | doe_experiments/corpus.py, tests/experiments/test_corpus.py, docs/modules/metrics.md |
 | NinjaMoons #7 | doe_experiments/phase_codec.py, doe_experiments/export.py, doe_experiments/cli.py, tests/experiments/test_phase_codec.py, tests/experiments/test_export.py, tests/integration/**, ui/app.py, tests/ui/**, docs/modules/demo.md |
-| NinjaMoons #6 | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
+| MVRto01 #6, передано Павлом 6 ноября | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
 | NinjaMoons #8 | docs/submission/**; generated bundles вне git |
 
 PNG IO координатора (#4A) сохраняет amplitude images; phase_codec координатора кодирует фазу DOE. MVRto01 уведомлён о передаче, локальный черновик запрошен для переноса; одновременная запись в #4A запрещена. Общие conftest/__init__/requirements/CI не редактируются исполнителями. Корпус MVR (#4B) использует существующие Fresnel/codec/IO/метрики, не копирует их.
@@ -25,8 +25,8 @@ PNG IO координатора (#4A) сохраняет amplitude images; phase
 |---|---|---|---|
 | ggmaster913 | #14A ревью/исправления PR #18, новый amplitude ACK | #14B физическая валидация / sampling в своих новых test/doc paths | Опубликованный forward, базовые complex/direct-sum/gradient проверки; замечания независимого ревью учтены |
 | playerr456 | #3 amplitude migration PR #17 + реальная Adam приёмка | #5 skeleton сейчас; train после gates | Skeleton не импортирует отсутствующие данные. Обучение только после физического gate, amplitude данных и baseline; короткий CPU smoke, затем checkpoint |
-| MVRto01 | #4B каркас генератора / manifest / split | #4B пилот64 A +64 B | A генерируется только проверенным Fresnel из decoded DOE; использовать готовые IO/codec/метрики #4A/#7 |
-| NinjaMoons | #4A PNG/метрики: реализация и отдельное ревью | #7 настоящий E2E, затем #6 benchmark и #8 сдача | После ревью #4A оба gate на одном дереве; итоговый комплект после trained model/checkpoint и согласования |
+| MVRto01 | #6A принять существующий harness PR22 | #4B пилот64 A +64 B, затем #6B сравнение | Write проверен; одна ACTIVE. Измерения только после обоих gates на точном HEAD, neural строка после checkpoint #5B |
+| NinjaMoons | #4A/#7 технически проверены: review, интеграция и сопровождение | #8 комплект и общий neural inference/export | Первый Adam PNG E2E прошёл на62a7181; benchmark передан MVR, исходники #6 параллельно не менять; финальная сдача после trained model и согласования |
 
 Одна ACTIVE задача на человека. READY NEXT содержит постановку/приёмку/пути в своей Issue; разрешённая подготовка не подменяет прохождение технических условий. После принятия ACTIVE участник берёт NEXT при выполнении указанных условий, без нового поручения Павла. Блокер публикуется с конкретной зависимостью и своим ETA; неизвестный ETA не выдумывается. PR и финальная сдача по-прежнему требуют review/согласования.
 

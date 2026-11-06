@@ -23,3 +23,9 @@
 # #4A transferred to coordinator by Pavel; corpus #4B stays with MVR.
 /doe_experiments/corpus.py @MVRto01 @NinjaMoons
 /tests/experiments/test_corpus.py @MVRto01 @NinjaMoons
+
+# Benchmark #6 transferred to MVRto01 after explicit approval and write check.
+/doe_experiments/benchmark.py @MVRto01 @NinjaMoons
+/doe_experiments/configs/** @MVRto01 @NinjaMoons
+/tests/experiments/test_benchmark.py @MVRto01 @NinjaMoons
+/docs/modules/benchmark.md @MVRto01 @NinjaMoons
