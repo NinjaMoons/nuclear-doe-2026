@@ -1,0 +1,72 @@
+{
+  "status": "INCOMPLETE",
+  "case_contract": "1.1-amplitude",
+  "observation": "amplitude",
+  "missing": [
+    "official_source_quartet",
+    "dataset_and_split_provenance",
+    "trained_checkpoint",
+    "training_evidence",
+    "heldout_evaluation",
+    "final_artifacts_and_hashes",
+    "gate_evidence",
+    "exact_reproduction"
+  ],
+  "source": {
+    "status": "PENDING",
+    "ordered_quartet": null,
+    "provenance": null,
+    "sha256": null
+  },
+  "dataset": {
+    "status": "PENDING",
+    "corpus_id": null,
+    "manifest_sha256": null,
+    "split_ids": null
+  },
+  "checkpoint": {
+    "status": "PENDING",
+    "path": null,
+    "sha256": null,
+    "code_commit": null,
+    "training_verified": false
+  },
+  "training": {
+    "status": "PENDING",
+    "log": null,
+    "log_sha256": null,
+    "updates": null,
+    "config": null
+  },
+  "heldout": {
+    "status": "PENDING",
+    "independent_source_ids": null,
+    "per_plane_metrics": null
+  },
+  "artifacts": {
+    "status": "PENDING",
+    "manifest": null,
+    "ordered_targets": null,
+    "doe_png": null,
+    "reconstruction_pngs": null,
+    "metrics_json": null,
+    "raw_npz": null,
+    "sha256": null
+  },
+  "gate_evidence": {
+    "status": "PENDING",
+    "exact_integration_sha": null,
+    "physics": null,
+    "data_roundtrip": null,
+    "neural_checkpoint_roundtrip": null
+  },
+  "reproduce": {
+    "status": "PENDING",
+    "argv": null,
+    "checkpoint_path": null,
+    "new_output_dir": null,
+    "dtype": null,
+    "dependencies": null,
+    "seed": null
+  }
+}
