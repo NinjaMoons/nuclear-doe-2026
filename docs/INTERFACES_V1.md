@@ -8,7 +8,7 @@
 
 Входной PNG/255 уже целевая amplitude: НЕ брать из него sqrt, не возводить в квадрат. MultiPlaneResult обязательно содержит `amplitudes` и `intensities` с одинаковой5Dформой и явной metadata observation=amplitude. Старые intensity outputs/corpora имеют другой contract/corpus_id и не смешиваются с новыми.
 
-Нормировка и PNG-конверсия: max по rawamplitude, float64 для uint8 conversion; floor(255*A/max(A)+0.5). Пример A=[1,2] ->[128,255], тогда как I=[1,4]->[64,255]; это численное изменение, не переименование. Loss=mean((A/max(A)-T)^2), включает gradient max. Intensity-сумма с площадью пикселя остаётся правильным энергетическим тестом.
+Нормировка и PNG-конверсия: max по raw amplitude; сначала перевести A в float64, затем вычислить ratio=A/max(A), затем floor(255*ratio+0.5). Порядок divide-first обязателен: 255*A/max может переполниться или дать другой код на half-boundary из-за округления. Пример A=[1,2] ->[128,255], тогда как I=[1,4]->[64,255]; это численное изменение, не переименование. Loss=mean((A/max(A)-T)^2), включает gradient max. Intensity-сумма с площадью пикселя остаётся правильным энергетическим тестом.
 
 ## Формы и порядок
 - Targets: float32/64 [B,4,1,128,128], яркость uint8/255, порядок distances_m=(0.0241,0.0253,0.0265,0.0277). B — независимые КВАРТЕТЫ, не плоскости.
@@ -72,7 +72,7 @@ evaluate_multiplane получает оба float32/64 tensors [B,4,1,128,128] �
 
 **Явные параметры метрик, требующие ACK владельца:** Pearson по всем128x128 значениям пары; нулевая дисперсия любого изображения -> pearson=None, pearson_defined=False, JSON null. SSIM: формула слайда3 на полном изображении, population variance/covariance, data_range=1, C1=0.01^2,C2=0.03^2; одинаковые константы дают SSIM1. Скользящее окно презентацией не определено: windowed skimage SSIM может быть дополнительным полем, не подменять им явно названный global policy. Любую альтернативу согласовать ДО сравнения результатов.
 
-Проверяемое правило primary evaluation `per_plane_max_amplitude_round_half_up_u8_v1_1`: для каждой плоскости m=max(raw A)>1e-12, q=floor(255*A/m+0.5), uint8. В manifest записывать m и exposure=1/m каждой плоскости; raw A сохранять без этой нормировки. Ни target, ни его метрики не участвуют в выборе exposure. Все методы используют одинаковое правило; тесты обязаны проверять формулу, инвариантность PNG к положительному масштабированию A и воспроизведение метрик из сохранённых файлов.
+Проверяемое правило primary evaluation `per_plane_max_amplitude_round_half_up_u8_v1_1`: для каждой плоскости m=max(raw A)>1e-12, ratio=A/m, затем q=floor(255*ratio+0.5), uint8; обе операции в float64, именно в таком порядке. В manifest записывать m и exposure=1/m каждой плоскости; raw A сохранять без этой нормировки. Ни target, ни его метрики не участвуют в выборе exposure. Все методы используют одинаковое правило; тесты обязаны проверять формулу, half-boundary, инвариантность PNG к положительному масштабированию A и воспроизведение метрик из сохранённых файлов.
 
 Primary metrics (только amplitude domain): пары original target PNG и повторно прочитанного restored PNG, оба/255; ровно4 результата наsample без сокрытия плохой плоскости средним. Дополнительно: metrics continuous phase и decoded phase float-output при той же display policy; quantization delta. Raw amplitude сохранять отдельно; target-fitted gain, gamma, histogram/contrast stretching запрещены без явного отдельного согласования.
 

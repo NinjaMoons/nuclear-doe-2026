@@ -31,7 +31,7 @@ def fixture_components(calls):
 
     def convert(raw):
         array = raw.detach().cpu().numpy().astype(np.float64)
-        return np.floor(255 * array / array.max(axis=(-2, -1), keepdims=True) + 0.5).astype(np.uint8)
+        return np.floor(255 * (array / array.max(axis=(-2, -1), keepdims=True)) + 0.5).astype(np.uint8)
 
     def save(codes, output_dir):
         paths = []
@@ -138,9 +138,25 @@ def test_export_png_uses_amplitude_not_squared_observable(tmp_path):
     export_run(inputs, phase, output, components=fixture_components([]), synthetic_test=True)
     raw = np.load(output / "raw.npz", allow_pickle=False)
     a, i = raw["amplitude_quantized"], raw["intensity_quantized"]
-    expected_a = np.floor(255 * a / a.max(axis=(-2,-1),keepdims=True) + 0.5).astype(np.uint8)
-    wrong_i = np.floor(255 * i / i.max(axis=(-2,-1),keepdims=True) + 0.5).astype(np.uint8)
+    expected_a = np.floor(255 * (a / a.max(axis=(-2,-1),keepdims=True)) + 0.5).astype(np.uint8)
+    wrong_i = np.floor(255 * (i / i.max(axis=(-2,-1),keepdims=True)) + 0.5).astype(np.uint8)
     assert np.any(expected_a != wrong_i)
     for plane in range(4):
         with Image.open(output / f"reconstructed_{plane+1:02d}.png") as image:
             np.testing.assert_array_equal(np.array(image), expected_a[0,plane,0])
+
+
+@pytest.mark.parametrize("maximum,pixel,code", [
+    (7.779288333427416, 3.2184898791238914, 106),
+    (1e308, 5e307, 128),
+])
+def test_export_conversion_uses_divide_first_float64(maximum, pixel, code):
+    from doe_experiments.export import _display
+    raw = torch.full((1,4,1,128,128), maximum, dtype=torch.float64)
+    raw[...,0,0] = pixel
+    expected = np.full(raw.shape, 255, dtype=np.uint8)
+    expected[...,0,0] = code
+    codes, maxima, normalized = _display(raw, lambda _: expected)
+    np.testing.assert_array_equal(codes, expected)
+    assert maxima == [maximum] * 4
+    assert torch.isfinite(normalized).all()
