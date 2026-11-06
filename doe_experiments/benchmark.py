@@ -32,7 +32,9 @@ def _inside(root: Path, relative: str) -> Path:
     if (not isinstance(relative, str) or not relative or Path(relative).is_absolute()
             or PureWindowsPath(relative).drive or PureWindowsPath(relative).root):
         raise ValueError("artifact path must be relative to the run directory")
-    path = (root / relative).resolve()
+    # Export manifests may have native Windows separators, including when
+    # subsequently collected on a POSIX host. Resolve aliases after conversion.
+    path = (root / Path(relative.replace("\\", "/"))).resolve()
     if not path.is_relative_to(root) or path == root or not path.is_file():
         raise ValueError("artifact must be a file inside the run directory")
     return path

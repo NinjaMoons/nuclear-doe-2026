@@ -124,13 +124,30 @@ def test_artifact_integrity(artifact_double, name, fault):
         summarize_adam_run(root)
 
 
-@pytest.mark.parametrize("escape", ["../outside.png", "C:/outside.png", "/outside.png"])
+@pytest.mark.parametrize("escape", ["../outside.png", "..\\outside.png", "C:/outside.png", "/outside.png", "\\\\server\\share\\outside.png"])
 def test_manifest_path_escape(artifact_double, escape):
     root, manifest, metrics = artifact_double
     (root.parent / "outside.png").write_bytes(b"outside")
     manifest["files"][escape] = digest(root.parent / "outside.png")
     update(root, manifest, metrics)
     with pytest.raises(ValueError):
+        summarize_adam_run(root)
+
+
+def test_accepts_windows_manifest_separators_on_any_host(artifact_double):
+    root, manifest, metrics = artifact_double
+    manifest["files"] = {name.replace("/", "\\"): value for name, value in manifest["files"].items()}
+    update(root, manifest, metrics)
+    report = summarize_adam_run(root)
+    assert report["artifact_sha256"] == manifest["files"]
+    assert report["planes"] == metrics["planes"]
+
+
+def test_rejects_duplicate_separator_aliases(artifact_double):
+    root, manifest, metrics = artifact_double
+    manifest["files"]["targets\\target_01.png"] = manifest["files"]["targets/target_01.png"]
+    update(root, manifest, metrics)
+    with pytest.raises(ValueError, match="duplicate artifact path"):
         summarize_adam_run(root)
 
 
