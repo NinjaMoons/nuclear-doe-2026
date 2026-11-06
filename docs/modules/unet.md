@@ -22,6 +22,13 @@
 ## Checkpoint
 `save_checkpoint(path, model, *, config, train_log, extra)` → SHA256 файла. Содержимое: format `doe_fourinput_unet_v1`, contract_version, hparams, dtype, state_dict, config, train_log, torch_version, extra — только тензоры и простые типы. `load_checkpoint(path)` использует `torch.load(weights_only=True)` (без произвольного pickle), проверяет format, восстанавливает архитектуру по hparams, `strict=True`, добавляет `sha256`. Checkpoint и веса в git не коммитятся.
 
+## Подготовка к #5B (без обучения на настоящей физике)
+- В log обучения на каждом шаге — `grad_norm` (L2 по всем градиентам весов), в конце — `weights_delta_l2` (L2 изменения весов итоговой модели относительно начальной): «measured gradient и weights change» из критериев #5B.
+- `save_checkpoint(..., code_commit=<git SHA>)` хранит commit кода; `checkpoint_metadata(payload)` даёт JSON-provenance (checkpoint SHA256, commit, hparams, contract_version, seed/steps/lr/ID/best val) — готов для `metadata` в `export_run` #7.
+- `infer_phase(model, targets)` — фаза без градиентов в eval mode (режим вызывающего восстанавливается); для B=1 даёт `[1,1,128,128]`, который принимает `export_run(target_paths, phase_rad, output_dir, metadata=...)`.
+- Тест: **новый Python-процесс** грузит checkpoint через `weights_only=True` и воспроизводит фазу бит-в-бит.
+- Предложение координатору (#7, его файлы): подкоманда CLI `unet --checkpoint` = `load_checkpoint` → `infer_phase` → `export_run(metadata=checkpoint_metadata(payload))`. Сам CLI/export не меняю.
+
 ## Проверка
 Training smoke использует **локальный differentiable stub** `fft2(U·exp(i·S_z))` — не модель Френеля, не физическое доказательство и не качество сети.
 

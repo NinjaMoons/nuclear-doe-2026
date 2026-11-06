@@ -23,8 +23,8 @@ from doe_core.contracts_v1 import (CONTRACT_VERSION_V1, LOSS_POLICY_V1, OBSERVAT
 from doe_models.adam_multiplane import multiplane_amplitudes, multiplane_loss
 from doe_models.unet_multiplane import FourInputUNet
 
-__all__ = ["CHECKPOINT_FORMAT", "check_disjoint_ids", "evaluate_model", "load_checkpoint",
-           "physics_loss", "save_checkpoint", "train_multiplane"]
+__all__ = ["CHECKPOINT_FORMAT", "check_disjoint_ids", "checkpoint_metadata", "evaluate_model",
+           "infer_phase", "load_checkpoint", "physics_loss", "save_checkpoint", "train_multiplane"]
 
 CHECKPOINT_FORMAT = "doe_fourinput_unet_v1"
 
@@ -135,6 +135,7 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
     }
     initial = evaluate(train_targets)
     log["initial"] = {"step": 0, "train_loss": initial["loss"], "plane_losses": initial["plane_losses"]}
+    initial_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
     best_state = None
 
     def validate(step: int) -> None:
@@ -157,27 +158,45 @@ def train_multiplane(model: torch.nn.Module, train_targets: torch.Tensor, *, con
         if not math.isfinite(value):
             raise RuntimeError(f"non-finite training loss at step {step}")
         loss.backward()
+        grad_norm = math.sqrt(sum(float(p.grad.detach().double().square().sum())
+                                  for p in model.parameters() if p.grad is not None))
         optimizer.step()
-        log["history"].append({"step": step, "train_loss": value})
+        log["history"].append({"step": step, "train_loss": value, "grad_norm": grad_norm})
         if val_targets is not None and (step % eval_every == 0 or step == steps):
             validate(step)
 
     if best_state is not None:
         model.load_state_dict(best_state)
+    final_state = model.state_dict()
+    log["weights_delta_l2"] = math.sqrt(sum(
+        float((final_state[k].double() - v.double()).square().sum())
+        for k, v in initial_state.items() if v.is_floating_point()))
     log["elapsed_s"] = time.perf_counter() - start
     log["timing_scope"] = "initial eval + training + validation evals"
     return log
 
 
+def infer_phase(model: torch.nn.Module, targets: torch.Tensor) -> torch.Tensor:
+    """Detached phase [B,1,H,W] from the model in eval mode; the caller's mode is restored."""
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.no_grad():
+            return model(targets).detach()
+    finally:
+        model.train(was_training)
+
+
 def save_checkpoint(path: str | Path, model: FourInputUNet, *, config: CaseConfigV1,
-                    train_log: dict, extra: dict | None = None) -> str:
-    """Save weights + hparams + config + log (tensors and plain types only); return SHA256."""
+                    train_log: dict, code_commit: str | None = None, extra: dict | None = None) -> str:
+    """Save weights + hparams + config + log + code commit (plain types only); return SHA256."""
     path = Path(path)
     payload = {
         "format": CHECKPOINT_FORMAT, "contract_version": CONTRACT_VERSION_V1,
         "hparams": model.hparams, "dtype": str(next(model.parameters()).dtype).replace("torch.", ""),
         "state_dict": model.state_dict(), "config": _json_config(config),
-        "train_log": train_log, "torch_version": str(torch.__version__), "extra": extra or {},
+        "train_log": train_log, "code_commit": code_commit,
+        "torch_version": str(torch.__version__), "extra": extra or {},
     }
     torch.save(payload, path)
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -195,3 +214,18 @@ def load_checkpoint(path: str | Path) -> tuple[FourInputUNet, dict]:
     model.load_state_dict(payload["state_dict"], strict=True)
     payload["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return model, payload
+
+
+def checkpoint_metadata(payload: dict) -> dict:
+    """JSON-compatible provenance of a loaded checkpoint, e.g. for export_run(metadata=...)."""
+    log = payload.get("train_log") or {}
+    keys = ("method", "propagator", "steps", "lr", "batch_size", "seed", "n_train", "n_val",
+            "train_ids", "val_ids", "test_ids", "best_step", "best_val_loss", "weights_delta_l2",
+            "observation", "loss_policy")
+    return {
+        "method": "fourinput_unet", "checkpoint_format": payload["format"],
+        "checkpoint_sha256": payload.get("sha256"), "code_commit": payload.get("code_commit"),
+        "contract_version": payload["contract_version"], "hparams": payload["hparams"],
+        "dtype": payload["dtype"], "torch_version": payload.get("torch_version"),
+        "training": {k: log.get(k) for k in keys},
+    }

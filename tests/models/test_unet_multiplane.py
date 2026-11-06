@@ -16,7 +16,9 @@ torch = pytest.importorskip("torch")
 from doe_core.contracts_v1 import CaseConfigV1, FresnelField, FresnelGeometry  # noqa: E402
 from doe_models.train_multiplane import (  # noqa: E402
     check_disjoint_ids,
+    checkpoint_metadata,
     evaluate_model,
+    infer_phase,
     load_checkpoint,
     physics_loss,
     save_checkpoint,
@@ -237,3 +239,64 @@ def test_load_rejects_non_checkpoint(tmp_path):
     torch.save({"not": "a checkpoint"}, path)
     with pytest.raises(ValueError):
         load_checkpoint(path)
+
+
+# --------------------------------------------------------------------------- #5B preparation
+def test_training_log_measures_gradient_and_weight_change(smoke):
+    _, before, log, _, _ = smoke
+    assert all(math.isfinite(h["grad_norm"]) and h["grad_norm"] > 0 for h in log["history"])
+    assert log["weights_delta_l2"] > 0
+
+
+def test_infer_phase_is_detached_and_keeps_training_mode(smoke):
+    model, _, _, _, val = smoke
+    model.train()
+    phase = infer_phase(model, val[:1])
+    assert model.training
+    assert phase.shape == (1, 1, H, W) and not phase.requires_grad
+    assert (phase >= -math.pi).all() and (phase < math.pi).all()
+    model.eval()
+    with torch.no_grad():
+        assert torch.equal(phase, model(val[:1]))
+
+
+def test_checkpoint_records_commit_and_metadata_is_export_ready(smoke, tmp_path):
+    import json
+    model, _, log, _, _ = smoke
+    path = tmp_path / "unet.pt"
+    digest = save_checkpoint(path, model, config=CONFIG, train_log=log, code_commit="abc1234")
+    _, payload = load_checkpoint(path)
+    md = checkpoint_metadata(payload)
+    json.dumps(md, allow_nan=False)
+    assert md["method"] == "fourinput_unet"
+    assert md["checkpoint_sha256"] == digest
+    assert md["code_commit"] == "abc1234"
+    assert md["hparams"] == model.hparams
+    assert md["contract_version"] == "1.1-amplitude"
+    assert md["training"]["best_val_loss"] == log["best_val_loss"]
+    assert md["training"]["seed"] == 0 and md["training"]["steps"] == 20
+    assert md["training"]["train_ids"] == ["t0", "t1", "t2", "t3"]
+
+
+def test_fresh_process_reload_reproduces_phase(smoke, tmp_path):
+    """A NEW Python process loads the checkpoint (weights_only) and gets the same phase."""
+    import os
+    import pathlib
+    import subprocess
+    import sys
+    model, _, log, _, val = smoke
+    ckpt, inp, out = tmp_path / "unet.pt", tmp_path / "in.pt", tmp_path / "out.pt"
+    save_checkpoint(ckpt, model, config=CONFIG, train_log=log)
+    torch.save(val, inp)
+    script = "\n".join([
+        "import sys, torch",
+        "from doe_models.train_multiplane import load_checkpoint, infer_phase",
+        "model, _ = load_checkpoint(sys.argv[1])",
+        "x = torch.load(sys.argv[2], weights_only=True)",
+        "torch.save(infer_phase(model, x), sys.argv[3])",
+    ])
+    root = pathlib.Path(__file__).resolve().parents[2]
+    env = {**os.environ, "PYTHONPATH": str(root)}
+    subprocess.run([sys.executable, "-c", script, str(ckpt), str(inp), str(out)],
+                   check=True, cwd=root, env=env, capture_output=True, timeout=300)
+    assert torch.equal(torch.load(out, weights_only=True), infer_phase(model, val))
