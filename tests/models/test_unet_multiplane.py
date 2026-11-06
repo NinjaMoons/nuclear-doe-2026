@@ -323,6 +323,9 @@ TAMPERS = {
     "int64_head_weight": lambda p: p["state_dict"].__setitem__(
         "head.weight", p["state_dict"]["head.weight"].to(torch.int64)),
     "non_tensor_entry": lambda p: p["state_dict"].__setitem__("head.bias", []),
+    "nan_weight": lambda p: p["state_dict"]["head.weight"].view(-1).__setitem__(0, float("nan")),
+    "pos_inf_weight": lambda p: p["state_dict"]["head.bias"].view(-1).__setitem__(0, float("inf")),
+    "neg_inf_weight": lambda p: next(iter(p["state_dict"].values())).view(-1).__setitem__(0, float("-inf")),
 }
 
 
