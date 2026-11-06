@@ -12,10 +12,14 @@
 /tests/models/test_*multiplane.py @playerr456 @NinjaMoons
 /docs/modules/adam.md @playerr456 @NinjaMoons
 /docs/modules/unet.md @playerr456 @NinjaMoons
-/doe_experiments/data.py @MVRto01 @NinjaMoons
-/doe_experiments/png_io.py @MVRto01 @NinjaMoons
-/doe_experiments/metrics.py @MVRto01 @NinjaMoons
-/tests/experiments/test_data.py @MVRto01 @NinjaMoons
-/tests/experiments/test_png_io.py @MVRto01 @NinjaMoons
-/tests/experiments/test_metrics.py @MVRto01 @NinjaMoons
+/doe_experiments/data.py @NinjaMoons
+/doe_experiments/png_io.py @NinjaMoons
+/doe_experiments/metrics.py @NinjaMoons
+/tests/experiments/test_data.py @NinjaMoons
+/tests/experiments/test_png_io.py @NinjaMoons
+/tests/experiments/test_metrics.py @NinjaMoons
 /docs/modules/metrics.md @MVRto01 @NinjaMoons
+
+# #4A transferred to coordinator by Pavel; corpus #4B stays with MVR.
+/doe_experiments/corpus.py @MVRto01 @NinjaMoons
+/tests/experiments/test_corpus.py @MVRto01 @NinjaMoons
