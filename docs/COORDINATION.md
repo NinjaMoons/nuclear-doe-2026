@@ -1,41 +1,36 @@
-# Координация разработки
+# Координация v1.1-amplitude
 
-## Команда и доступ
-Владелец и интеграция: Павел / @NinjaMoons. По указанию Павла: @ggmaster913 — ASM (приоритет 1), @playerr456 — Adam (приоритет 2), @MVRto01 — данные/метрики (приоритет 3). Следующие волны — предложение; исполнители подтверждают доступность в своих Issues.
+Общие контракты меняет только @NinjaMoons. Новые ACK на текущий SHA PR #15 обязательны: старые intensity ACK не действуют. Черновики и независимая подготовка разрешены; merge после согласования. Фактические статусы и ETA обновляются в Issues, а не считаются готовностью по старому тексту этого файла.
 
-На начальном API-срезе @ggmaster913 уже имеет write; @playerr456 имеет непросроченное приглашение write; @MVRto01 Павел приглашает самостоятельно. Фактические assignees и текущие приглашения проверяются заново при каждом запуске. Pending invitation не означает готовый доступ.
+## Исключительные области записи
 
-## Границы файлов
-| Задача | Ответственный | Разрешённые пути |
-|---|---|---|
-| [#1](https://github.com/NinjaMoons/nuclear-doe-2026/issues/1), инфраструктура | @NinjaMoons | docs/INTERFACES.md, docs/COORDINATION.md, docs/STATUS.md, docs/TASKS.md, AGENTS.md, CLAUDE.md, README.md, pyproject.toml, requirements*.txt, .gitignore, .github/**, doe_core/contracts.py, */__init__.py, tests/infrastructure/**, tests/integration/** |
-| [#2](https://github.com/NinjaMoons/nuclear-doe-2026/issues/2), ASM | @ggmaster913 | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
-| [#3](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3), Adam | @playerr456 | doe_models/adam.py, tests/models/test_adam.py, docs/modules/adam.md |
-| [#4](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4), данные/метрики | @MVRto01 | doe_experiments/data.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_metrics.py, docs/modules/metrics.md |
-| [#5](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5), U-Net | @playerr456, предлагается после Adam | doe_models/unet.py, doe_models/train.py, tests/models/test_unet.py, docs/modules/unet.md |
-| [#6](https://github.com/NinjaMoons/nuclear-doe-2026/issues/6), benchmark | @MVRto01, предлагается после метрик | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
-| [#7](https://github.com/NinjaMoons/nuclear-doe-2026/issues/7), демо | @NinjaMoons, предлагается | ui/app.py, tests/ui/**, docs/modules/demo.md |
-| [#8](https://github.com/NinjaMoons/nuclear-doe-2026/issues/8), сдача | @NinjaMoons | docs/submission/**, README.md, tests/integration/** |
+| Владелец / Issue | Разрешённые пути |
+|---|---|
+| NinjaMoons #1 | doe_core/contracts.py, doe_core/contracts_v1.py, doe_core/observables.py, tests/core/test_observables.py, tests/infrastructure/**, docs/INTERFACES*.md, docs/CASE_REQUIREMENTS.md, docs/spec/**, docs/COORDINATION.md, docs/TASKS.md, docs/STATUS.md, AGENTS.md, CLAUDE.md, README.md, .github/**, pyproject.toml, requirements*.txt, */__init__.py |
+| ggmaster913 #2 | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
+| ggmaster913 #14 | doe_core/fresnel.py, tests/core/test_fresnel.py, tests/core/test_fresnel_physical.py, docs/modules/fresnel.md, docs/modules/fresnel_validation.md |
+| playerr456 #3 | doe_models/adam_multiplane.py, tests/models/test_adam_multiplane.py, docs/modules/adam.md |
+| playerr456 #5 | doe_models/unet_multiplane.py, doe_models/train_multiplane.py, tests/models/test_unet_multiplane.py, docs/modules/unet.md |
+| MVRto01 #4 | doe_experiments/data.py, doe_experiments/png_io.py, doe_experiments/metrics.py, doe_experiments/corpus.py, tests/experiments/test_data.py, tests/experiments/test_png_io.py, tests/experiments/test_metrics.py, tests/experiments/test_corpus.py, docs/modules/metrics.md |
+| NinjaMoons #7 | doe_experiments/phase_codec.py, doe_experiments/export.py, doe_experiments/cli.py, tests/experiments/test_phase_codec.py, tests/experiments/test_export.py, tests/integration/**, ui/app.py, tests/ui/**, docs/modules/demo.md |
+| NinjaMoons #6 | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
+| NinjaMoons #8 | docs/submission/**; generated bundles вне git |
 
-Все задачи и прямые ссылки собраны в [TASKS](TASKS.md). Общие файлы принадлежат координатору. Fixtures — внутри теста исполнителя; общие conftest.py/exports/зависимости не меняются параллельно. Выход за разрешённые пути — сначала согласование в Issue. CODEOWNERS задаёт ревью, но не блокирует запись.
+PNG IO MVR сохраняет amplitude images; phase_codec координатора кодирует фазу DOE. Общие conftest/__init__/requirements/CI не редактируются исполнителями. Корпус использует существующие Fresnel/codec/IO/метрики, не копирует их.
 
-## Старт и интеграция
-1. Павел проверяет и согласует инфраструктурный PR; после merge фиксируется базовый commit контракта.
-2. Три исполнителя создают свои ветки от обновлённого main. ASM независим; Adam начинает с локального differentiable stub через Propagator; данные/метрики не импортируют ASM/models.
-3. Приёмка Adam требует реального ASM и согласованных метрик. Stub не является физическим доказательством.
-4. Нейросеть — после работающего baseline. Benchmark, демо, сдача — по зависимостям Issues. Отсутствие нейросети не выдаётся за выполнение нейросетевого задания.
+## Постоянная очередь в существующих Issues
 
-Одна Issue — одна ветка `codex/<issue>-<slug>` — один PR в main. Чужие ветки не изменять и не переписывать. Конфликты исправляет владелец своей ветки. В PR: Issue, изменённые пути, commit, команды и фактический результат тестов, параметры/seed/device и ограничения. Решения и согласования сохранять в GitHub.
+| Исполнитель | ACTIVE | READY NEXT | Технические условия следующего этапа |
+|---|---|---|---|
+| ggmaster913 | #14A ревью/исправления PR #18, новый amplitude ACK | #14B физическая валидация / sampling в своих новых test/doc paths | Опубликованный forward, базовые complex/direct-sum/gradient проверки; замечания независимого ревью учтены |
+| playerr456 | #3 amplitude migration PR #17 + реальная Adam приёмка | #5 skeleton сейчас; train после gates | Skeleton не импортирует отсутствующие данные. Обучение только после физического gate, amplitude данных и baseline; короткий CPU smoke, затем checkpoint |
+| MVRto01 | #4A ACK + PNG/Pearson/SSIM + первый PR | #4B пилот64 A +64 B | Каркас генератора/manifest/split сейчас; A генерируется только проверенным Fresnel из decoded DOE; готовые IO/codec/метрики |
+| NinjaMoons | #7 amplitude export, два gate, настоящий E2E | #6 benchmark; #8 шаблон состава сдачи | Каркасы и сценарии сейчас; измерения после настоящего baseline; комплект сдачи после trained model/checkpoint и согласования |
 
-## Проверки и merge
-Workflow CI: Python 3.11, pytest, compileall, контроль синтаксиса и инфраструктурных контрактов. Когда появляется научный код, CI ставит CPU PyTorch/NumPy и запускает все тесты. Минимум один собранный тест обязателен; pytest с нулём тестов завершается ошибкой. Таймаут 8 минут, concurrency отменяет устаревшие запуски, GITHUB_TOKEN contents:read. Actions закреплены SHA; pull_request_target, секреты, GPU и длительное обучение не используются. Настройки расходов не меняются; остаток Actions-квоты текущему токену недоступен.
+Одна ACTIVE задача на человека. READY NEXT содержит постановку/приёмку/пути в своей Issue; разрешённая подготовка не подменяет прохождение технических условий. После принятия ACTIVE участник берёт NEXT при выполнении указанных условий, без нового поручения Павла. Блокер публикуется с конкретной зависимостью и своим ETA; неизвестный ETA не выдумывается. PR и финальная сдача по-прежнему требуют review/согласования.
 
-Защита main и rulesets: API вернул 403 с требованием GitHub Pro или публичного репозитория. Поэтому обязательные checks/review не обеспечены сервером; используем явное правило команды: merge только после зелёного CI на текущем head, ревью, разрешения обсуждений и необходимых согласований. Наличие CODEOWNERS не означает серверную защиту. Координатор не одобряет собственный PR. Начальный контракт и сдачу согласует Павел. Не покупать тариф и не менять приватность автоматически.
+## Пилот данных и качество
 
-## Сроки и приоритеты
-Рабочий срок по timeline [официального сайта](https://nuclearhack.mephi.ru/): 7 ноября 2026, 21:00 Europe/Moscow. Срок конкретного кейса и полное ТЗ ещё нужно сверить. Внутренние ориентиры: 6 ноября 20:00 — контракт/доступы; 7 ноября 02:00 — ASM+Adam CPU; 10:00 — метрики и neural smoke; 15:00 — сравнение/демо; 18:00 — feature freeze; 20:00 — готовый пакет, час резерва. Это план, не подтверждение выполнения и не обещание доступности участников. P0 — ASM, Adam, метрики/тесты; второстепенное не блокирует baseline.
+Только64 A +64 B; это тестовый пилот. A: phase -> DOE uint8 -> decode -> одно поле на4z -> amplitude PNG; label phi_q, не исходная непрерывная phase. B: произвольные procedural изображения без выдуманной phase ground truth. Split по parent/source ID до аугментаций; стабильный SHA256, seed/config/provenance, version1.1-amplitude; старые intensity корпуса не смешивать. Предварительный split48/8/8 на корпус, группировки не пересекаются. Никаких5120 примеров или длительного обучения до малого smoke.
 
-## Каждый запуск координатора
-Сначала читать актуальные HEAD, Issues, PR/checks/reviews/conflicts и Actions; затем обновлять статусы и зависимости без дублей. На проблему — ограниченный цикл исправления и проверки; повторяющийся blocker фиксировать с владельцем. Отчёт: готово / выполняется / blocked / PR review / следующий шаг / время до срока.
-
-Постоянный watcher не установлен; GitHub запускает CI, но чат не гарантирует реакцию между запусками. Внешние окружения Claude Code запускают участники. Запрошенная политика: GPT-6.1 Sol high для архитектуры/науки, medium для стандартного review/интеграции, low для организации. Автоматическое переключение текущей сессии и остатки модельных квот не подтверждены.
+Два обязательных независимых по назначению gate описаны в INTERFACES_V1: physics/direct sum и data roundtrip. Отсутствующие зависимости FAIL, не skip. ASM сохраняется отдельно, не выдаётся за условие single-FFT Fresnel. Discrete reference не доказывает непрерывную оптику. Branch protection ранее недоступен(403); обязательность проверок обеспечивается workflow и review, без заявления об enforced protection. Срок кейса и реальные4PNG пока требуют подтверждения. Каждый запуск начинает с актуального GitHub; постоянный watcher не заявляется.
