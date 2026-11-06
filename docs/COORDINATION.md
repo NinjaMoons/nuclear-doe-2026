@@ -1,41 +1,41 @@
-# Координация разработки
+# Координация: официальный кейс v1
 
-## Команда и доступ
-Владелец и интеграция: Павел / @NinjaMoons. По указанию Павла: @ggmaster913 — ASM (приоритет 1), @playerr456 — Adam (приоритет 2), @MVRto01 — данные/метрики (приоритет 3). Следующие волны — предложение; исполнители подтверждают доступность в своих Issues.
+**Предложение на согласование; реализацию новых API начать после review/ACK и merge контракта v1.** Владелец Павел/@NinjaMoons. Официальный источник и открытые соглашения: [требования](CASE_REQUIREMENTS.md), [v1](INTERFACES_V1.md). v0/ASM сохраняется, общие v0 API не меняются.
 
-На начальном API-срезе @ggmaster913 уже имеет write; @playerr456 имеет непросроченное приглашение write; @MVRto01 Павел приглашает самостоятельно. Фактические assignees и текущие приглашения проверяются заново при каждом запуске. Pending invitation не означает готовый доступ.
+## Текущее состояние
+main=def3b3d (инфраструктура). PR13=1d050e4, open/CHANGES_REQUESTED: inference-cache/autograd и описание2D sampling; зелёный CI не устраняет эти замечания. PR12=ed8f1a3 — прежний одноплоскостной smoke, не официальная приёмка. PR11 — отдельное исследование. Другие PR без отдельного согласования не сливать.
 
-## Границы файлов
-| Задача | Ответственный | Разрешённые пути |
-|---|---|---|
-| [#1](https://github.com/NinjaMoons/nuclear-doe-2026/issues/1), инфраструктура | @NinjaMoons | docs/INTERFACES.md, docs/COORDINATION.md, docs/STATUS.md, docs/TASKS.md, AGENTS.md, CLAUDE.md, README.md, pyproject.toml, requirements*.txt, .gitignore, .github/**, doe_core/contracts.py, */__init__.py, tests/infrastructure/**, tests/integration/** |
-| [#2](https://github.com/NinjaMoons/nuclear-doe-2026/issues/2), ASM | @ggmaster913 | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
-| [#3](https://github.com/NinjaMoons/nuclear-doe-2026/issues/3), Adam | @playerr456 | doe_models/adam.py, tests/models/test_adam.py, docs/modules/adam.md |
-| [#4](https://github.com/NinjaMoons/nuclear-doe-2026/issues/4), данные/метрики | @MVRto01 | doe_experiments/data.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_metrics.py, docs/modules/metrics.md |
-| [#5](https://github.com/NinjaMoons/nuclear-doe-2026/issues/5), U-Net | @playerr456, предлагается после Adam | doe_models/unet.py, doe_models/train.py, tests/models/test_unet.py, docs/modules/unet.md |
-| [#6](https://github.com/NinjaMoons/nuclear-doe-2026/issues/6), benchmark | @MVRto01, предлагается после метрик | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
-| [#7](https://github.com/NinjaMoons/nuclear-doe-2026/issues/7), демо | @NinjaMoons, предлагается | ui/app.py, tests/ui/**, docs/modules/demo.md |
-| [#8](https://github.com/NinjaMoons/nuclear-doe-2026/issues/8), сдача | @NinjaMoons | docs/submission/**, README.md, tests/integration/** |
+По API: ggmaster913 и MVRto01 имеют write; playerr456 pending invitation, assignee недоступен. Исполнители пока не оставили новых status replies. Старый checkpoint19:15 прошёл без подтверждений; обещание полной интеграции20:30 на этих данных не подтверждено.
 
-Все задачи и прямые ссылки собраны в [TASKS](TASKS.md). Общие файлы принадлежат координатору. Fixtures — внутри теста исполнителя; общие conftest.py/exports/зависимости не меняются параллельно. Выход за разрешённые пути — сначала согласование в Issue. CODEOWNERS задаёт ревью, но не блокирует запись.
+## Непересекающееся владение файлами v1
+| Issue/владелец | Разрешённые пути |
+|---|---|
+| #1 координатор | doe_core/contracts.py (v0 не ломать), doe_core/contracts_v1.py, tests/infrastructure/**, docs/INTERFACES*.md, docs/CASE_REQUIREMENTS.md, docs/spec/AI-photonics-case.pdf, docs/COORDINATION.md, docs/TASKS.md, docs/STATUS.md, AGENTS.md, CLAUDE.md, README.md, .github/**, pyproject.toml, requirements*.txt, */__init__.py |
+| #2 ggmaster913, legacyASM | doe_core/asm.py, tests/core/test_asm.py, docs/modules/asm.md |
+| #14 ggmaster913, Fresnel | doe_core/fresnel.py, tests/core/test_fresnel.py, docs/modules/fresnel.md |
+| #3 playerr456, sharedAdam | doe_models/adam_multiplane.py, tests/models/test_adam_multiplane.py, docs/modules/adam.md |
+| #5 playerr456, neural4to1 | doe_models/unet_multiplane.py, doe_models/train_multiplane.py, tests/models/test_unet_multiplane.py, docs/modules/unet.md |
+| #4 MVRto01, PNG/метрики | doe_experiments/data.py, doe_experiments/png_io.py, doe_experiments/metrics.py, tests/experiments/test_data.py, tests/experiments/test_png_io.py, tests/experiments/test_metrics.py, docs/modules/metrics.md |
+| #6 координатор, benchmark | doe_experiments/benchmark.py, doe_experiments/configs/**, tests/experiments/test_benchmark.py, docs/modules/benchmark.md |
+| #7 координатор, codec/CLI | doe_experiments/phase_codec.py, doe_experiments/export.py, doe_experiments/cli.py, tests/experiments/test_phase_codec.py, tests/experiments/test_export.py, tests/integration/test_submission_roundtrip.py, ui/app.py, tests/ui/**, docs/modules/demo.md |
+| #8 координатор, сдача | docs/submission/**; manifest/bundle не коммитится как generateddata |
 
-## Старт и интеграция
-1. Павел проверяет и согласует инфраструктурный PR; после merge фиксируется базовый commit контракта.
-2. Три исполнителя создают свои ветки от обновлённого main. ASM независим; Adam начинает с локального differentiable stub через Propagator; данные/метрики не импортируют ASM/models.
-3. Приёмка Adam требует реального ASM и согласованных метрик. Stub не является физическим доказательством.
-4. Нейросеть — после работающего baseline. Benchmark, демо, сдача — по зависимостям Issues. Отсутствие нейросети не выдаётся за выполнение нейросетевого задания.
+PNG_io MVR сохраняет входные/восстановленные яркостные PNG; phase_codec только координатор кодирует DOE. Метрики MVR, benchmark координатор. Никаких параллельных правок общего conftest.py/contracts/__init__/requirements/workflow. Потребителю нужна правка общего файла — запрос в Issue координатору. Один владелец может последовательно вести свои Issues, но PR/ветка отдельны. Старые v0 файлы моделей, если появятся, не переопределять скрыто; сохранять отдельно.
 
-Одна Issue — одна ветка `codex/<issue>-<slug>` — один PR в main. Чужие ветки не изменять и не переписывать. Конфликты исправляет владелец своей ветки. В PR: Issue, изменённые пути, commit, команды и фактический результат тестов, параметры/seed/device и ограничения. Решения и согласования сохранять в GitHub.
+## Старт, зависимости и согласование
+Координатор публикует v1 PR. Павел и владельцы gg/player/MVR подтверждают shapes, сигнатуры, геометрию и PNG/метрики policy в комментариях. До ACK/merge новой реализации не начинать. Ветка Fresnel codex/14-fresnel-single-fft готовится отдельно; владелец обновляет её отmain после согласования. Player может начинать unit tests на локальном differentiable stub после ACK, не ожидая готовогоFresnel; настоящая приёмка требует#14 и#4. MVR независим отготовности физики и моделей. Нейросеть#5 — обязательная частьсдачи, не украшениеAdam.
 
-## Проверки и merge
-Workflow CI: Python 3.11, pytest, compileall, контроль синтаксиса и инфраструктурных контрактов. Когда появляется научный код, CI ставит CPU PyTorch/NumPy и запускает все тесты. Минимум один собранный тест обязателен; pytest с нулём тестов завершается ошибкой. Таймаут 8 минут, concurrency отменяет устаревшие запуски, GITHUB_TOKEN contents:read. Actions закреплены SHA; pull_request_target, секреты, GPU и длительное обучение не используются. Настройки расходов не меняются; остаток Actions-квоты текущему токену недоступен.
+ОднаIssue — одна своя ветка — одинPR. Чужие ветки не менять, результаты передавать с currenthead/tests/limitations. Пересечения путей выше допустимы только у одного координатора; его собственные ветки менять последовательно.
 
-Защита main и rulesets: API вернул 403 с требованием GitHub Pro или публичного репозитория. Поэтому обязательные checks/review не обеспечены сервером; используем явное правило команды: merge только после зелёного CI на текущем head, ревью, разрешения обсуждений и необходимых согласований. Наличие CODEOWNERS не означает серверную защиту. Координатор не одобряет собственный PR. Начальный контракт и сдачу согласует Павел. Не покупать тариф и не менять приватность автоматически.
+## Следующие два часа после согласования v1
 
-## Сроки и приоритеты
-Рабочий срок по timeline [официального сайта](https://nuclearhack.mephi.ru/): 7 ноября 2026, 21:00 Europe/Moscow. Срок конкретного кейса и полное ТЗ ещё нужно сверить. Внутренние ориентиры: 6 ноября 20:00 — контракт/доступы; 7 ноября 02:00 — ASM+Adam CPU; 10:00 — метрики и neural smoke; 15:00 — сравнение/демо; 18:00 — feature freeze; 20:00 — готовый пакет, час резерва. Это план, не подтверждение выполнения и не обещание доступности участников. P0 — ASM, Adam, метрики/тесты; второстепенное не блокирует baseline.
+- 0–15 минут: ACK владельцев; player принимает приглашение. Подтвердить доступность и ETA. gg адресно завершает замечания ASM, затем переходит в отдельную Fresnel-ветку; большие ASM/library исследования не блокируют кейс.
+- 15–60 минут: параллельно Fresnel/direct-sum tests, PNG/Pearson/SSIM и shared-Adam stub; координатор готовит codec и roundtrip-приёмку.
+- 60–90 минут: первая попытка4syntheticPNG -> oneDOE.png -> reload ->4FresnelPNG ->8метрик. Это численный baseline, не завершение кейса.
+- 90–120 минут: player начинает минимальное physics-informed обучение4->1 и сохраняет checkpoint; координатор сравнивает continuous/uint8 и готовит benchmark. Результат зависит от ресурсов и исполнителей. При отсутствии доступности фиксировать blocker/ETA и обратиться к Павлу о переназначении; не писать чужие модули параллельно.
 
-## Каждый запуск координатора
-Сначала читать актуальные HEAD, Issues, PR/checks/reviews/conflicts и Actions; затем обновлять статусы и зависимости без дублей. На проблему — ограниченный цикл исправления и проверки; повторяющийся blocker фиксировать с владельцем. Отчёт: готово / выполняется / blocked / PR review / следующий шаг / время до срока.
+Контроль20:30МСК6ноября — статус новой физики, данных и Adam; полная интеграция не гарантирована. Срока кейса в PDF нет. Рабочий ориентир сайта7ноября21:00МСК требует сверки.
 
-Постоянный watcher не установлен; GitHub запускает CI, но чат не гарантирует реакцию между запусками. Внешние окружения Claude Code запускают участники. Запрошенная политика: GPT-6.1 Sol high для архитектуры/науки, medium для стандартного review/интеграции, low для организации. Автоматическое переключение текущей сессии и остатки модельных квот не подтверждены.
+## Проверки и ограничения процесса
+
+Восемь старых и восемь новых contract tests не доказывают физику или нейросеть. Module tests, независимый reference, PNG roundtrip и checkpoint/evaluation проверяются отдельно. Branch protection/rulesets недоступны на текущем приватном тарифе(403); review/checks обязательны по процессу команды. Платные API и длительное обучение без согласования не запускать. Постоянный watcher и новая система управления не создаются. Каждый запуск начинается с актуального GitHub.
