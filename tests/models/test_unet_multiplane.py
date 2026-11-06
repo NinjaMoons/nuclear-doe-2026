@@ -320,6 +320,9 @@ TAMPERS = {
     "wrong_dtype": lambda p: p.__setitem__("dtype", "float16"),
     "bad_depth": lambda p: p["hparams"].__setitem__("depth", True),
     "missing_config": lambda p: p.pop("config"),
+    "int64_head_weight": lambda p: p["state_dict"].__setitem__(
+        "head.weight", p["state_dict"]["head.weight"].to(torch.int64)),
+    "non_tensor_entry": lambda p: p["state_dict"].__setitem__("head.bias", []),
 }
 
 

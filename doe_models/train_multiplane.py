@@ -231,9 +231,11 @@ def load_checkpoint(path: str | Path) -> tuple[FourInputUNet, dict]:
         raise ValueError(f"checkpoint hparams {hp} do not match this architecture {model.hparams}")
     model = model.to(dtype=dtype)
     state = payload.get("state_dict")
+    # Every entry of this architecture is a floating tensor of the checkpoint dtype; anything
+    # else (int tensors, non-tensors) is rejected instead of being cast by load_state_dict.
     if not isinstance(state, dict) or any(not isinstance(v, torch.Tensor) or v.dtype != dtype
-                                          for v in state.values() if v.is_floating_point()):
-        raise ValueError("checkpoint state_dict missing or of a different dtype")
+                                          for v in state.values()):
+        raise ValueError("checkpoint state_dict missing, non-tensor or of a different dtype")
     try:
         model.load_state_dict(state, strict=True)
     except RuntimeError as exc:
