@@ -451,3 +451,147 @@ def test_integration_heldout_inference_through_export(real_run, tmp_path):
                for p in metrics["planes"])
     assert manifest["metadata"]["checkpoint_sha256"] == payload["sha256"]
     assert manifest["metadata"]["method"] == "fourinput_unet"
+
+
+# --------------------------------------------------------------------------- opt-in training objective (#5, coordinator decision)
+from doe_models.train_multiplane import TRAINING_OBJECTIVES, training_objective  # noqa: E402
+
+LSQ_MIX = "lsq_gain_nmse_plus_0.1_contract_mse_v1"
+
+
+def test_objective_names_and_default_is_contract():
+    assert TRAINING_OBJECTIVES == ("contract_mse", LSQ_MIX)
+    A = torch.rand(1, 4, 1, 3, 4, dtype=torch.float64, generator=torch.Generator().manual_seed(1)) + 0.1
+    T = torch.rand(1, 4, 1, 3, 4, dtype=torch.float64, generator=torch.Generator().manual_seed(2))
+    from doe_models.adam_multiplane import multiplane_loss
+    value, info = training_objective(A, T, "contract_mse")
+    assert float(value) == float(multiplane_loss(A, T)[0])
+    assert info["zero_target_planes"] == 0
+
+
+def test_lsq_mix_matches_hand_computed_value():
+    A = torch.zeros(1, 4, 1, 2, 2, dtype=torch.float64)
+    T = torch.zeros_like(A)
+    A[0, 0, 0] = torch.tensor([[1.0, 0.0], [0.0, 0.0]])
+    T[0, 0, 0] = torch.tensor([[0.0, 1.0], [0.0, 0.0]])
+    for k in (1, 2, 3):
+        T[0, k, 0] = torch.tensor([[0.0, 0.5], [1.0, 1.0]])
+        A[0, k, 0] = 3.0 * T[0, k, 0]
+    value, info = training_objective(A, T, LSQ_MIX)
+    # plane 0: optimal gain s = <A,T>/<A,A> = 0 -> NMSE = 1; contract = (1+1)/4 = 0.5
+    # planes 1-3: A = 3T -> NMSE 0, contract 0.  total = mean(1,0,0,0) + 0.1 * mean(.5,0,0,0)
+    assert float(value) == pytest.approx(0.25 + 0.1 * 0.125, abs=1e-15)
+    assert info["lsq_nmse"] == pytest.approx(0.25, abs=1e-15)
+    assert info["contract_mse"] == pytest.approx(0.125, abs=1e-15)
+    assert value.dtype == torch.float64
+
+
+def test_lsq_mix_is_scale_invariant_and_differentiable():
+    gen = torch.Generator().manual_seed(3)
+    A = (torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64) + 0.1).requires_grad_(True)
+    T = torch.rand(1, 4, 1, 3, 4, generator=gen, dtype=torch.float64)
+    v1, _ = training_objective(A, T, LSQ_MIX)
+    v5, _ = training_objective(5.0 * A, T, LSQ_MIX)
+    assert float(v1.detach()) == pytest.approx(float(v5.detach()), rel=1e-12)
+    assert torch.autograd.gradcheck(lambda a: training_objective(a, T, LSQ_MIX)[0], (A,))
+
+
+def test_lsq_mix_float32_input_is_reduced_in_float64():
+    A = torch.rand(1, 4, 1, 3, 4, generator=torch.Generator().manual_seed(4)) + 0.1
+    T = torch.rand(1, 4, 1, 3, 4, generator=torch.Generator().manual_seed(5))
+    v32, _ = training_objective(A, T, LSQ_MIX)
+    v64, _ = training_objective(A.double(), T.double(), LSQ_MIX)
+    assert v32.dtype == torch.float64 and float(v32) == float(v64)
+
+
+def test_lsq_mix_zero_target_plane_falls_back_to_contract_and_is_counted():
+    A = torch.rand(2, 4, 1, 3, 4, generator=torch.Generator().manual_seed(6), dtype=torch.float64) + 0.1
+    T = torch.rand(2, 4, 1, 3, 4, generator=torch.Generator().manual_seed(7), dtype=torch.float64)
+    T[1, 2] = 0.0
+    value, info = training_objective(A, T, LSQ_MIX)
+    assert info["zero_target_planes"] == 1
+    assert math.isfinite(float(value))
+    D = A / A.amax(dim=(-2, -1), keepdim=True)
+    per_contract = ((D - T) ** 2).mean(dim=(-2, -1))[..., 0]          # [B,4]
+    s = (A * T).sum(dim=(-2, -1)) / (A * A).sum(dim=(-2, -1))
+    per_lsq = ((s[..., None, None] * A - T) ** 2).sum(dim=(-2, -1)) / (T * T).sum(dim=(-2, -1))
+    per_lsq = per_lsq[..., 0]
+    per_lsq[1, 2] = per_contract[1, 2]
+    expected = per_lsq.mean() + 0.1 * per_contract.mean()
+    assert float(value) == pytest.approx(float(expected), rel=1e-12)
+
+
+def test_unknown_objective_rejected():
+    A = torch.ones(1, 4, 1, 2, 2)
+    with pytest.raises(ValueError):
+        training_objective(A, A, "pearson_only")
+    with pytest.raises(ValueError):
+        train_multiplane(build_model(seed=0, **SMALL), quartets(1, seed=0), config=CONFIG,
+                         propagate_fn=ScreenStub(), steps=1, training_objective="pearson_only")
+
+
+@pytest.fixture(scope="module")
+def mix_run():
+    calls = []
+
+    def val_metrics(amplitudes, targets):
+        calls.append(tuple(amplitudes.shape))
+        return {"pearson_plane": [0.1, 0.2, 0.3, 0.4], "ssim_plane": [0.0, 0.1, 0.2, 0.3]}
+
+    model = build_model(seed=0, **SMALL)
+    log = train_multiplane(model, quartets(4, seed=10), config=CONFIG, propagate_fn=ScreenStub(), steps=6,
+                           lr=3e-3, batch_size=2, seed=0, val_targets=quartets(2, seed=20), eval_every=3,
+                           training_objective=LSQ_MIX, val_metrics_fn=val_metrics)
+    return model, log, calls
+
+
+def test_training_with_lsq_mix_logs_objective_and_selects_best_by_it(mix_run):
+    model, log, calls = mix_run
+    assert log["training_objective"] == LSQ_MIX
+    assert [v["step"] for v in log["val"]] == [0, 3, 6]
+    for v in log["val"]:
+        assert {"objective", "contract_mse", "trivial_mean_t2", "bright_fraction",
+                "zero_target_planes", "metrics"} <= set(v)
+        assert 0 <= v["bright_fraction"] <= 1 and v["trivial_mean_t2"] > 0
+        assert v["metrics"]["pearson_plane"] == [0.1, 0.2, 0.3, 0.4]
+    assert log["best_val_loss"] == min(v["objective"] for v in log["val"])
+    assert log["val"][[v["step"] for v in log["val"]].index(log["best_step"])]["objective"] == log["best_val_loss"]
+    assert all({"objective", "contract_mse"} <= set(h) for h in log["history"])
+    assert log["zero_target_fallbacks"] == 0
+    assert calls and all(c == (2, 4, 1, H, W) for c in calls)
+    import json
+    json.dumps(log, allow_nan=False)
+
+
+def test_model_holds_best_weights_by_objective(mix_run):
+    model, log, _ = mix_run
+    val = quartets(2, seed=20)
+    now = evaluate_model(model, val, config=CONFIG, propagate_fn=ScreenStub(), training_objective=LSQ_MIX)
+    assert now["objective"] == pytest.approx(log["best_val_loss"], rel=1e-6)
+
+
+def test_default_training_still_uses_contract_objective(smoke):
+    _, _, log, _, _ = smoke
+    assert log["training_objective"] == "contract_mse"
+    assert log["best_val_loss"] == min(v["val_loss"] for v in log["val"])
+
+
+def test_best_state_is_chosen_by_objective_not_contract(monkeypatch):
+    """Scripted validation where the objective and the contract MSE disagree on the best step."""
+    import doe_models.train_multiplane as tm
+    real = tm.evaluate_model
+    scripted = iter([(0.9, 0.30), (0.2, 0.40), (0.5, 0.10)])   # (objective, contract) at val steps 0,1,2
+
+    def fake(model, targets, **kw):
+        out = real(model, targets, **kw)
+        if targets.shape[0] == 2:          # validation set only
+            objective, contract = next(scripted)
+            out.update(objective=objective, loss=contract)
+        return out
+
+    monkeypatch.setattr(tm, "evaluate_model", fake)
+    log = tm.train_multiplane(build_model(seed=0, **SMALL), quartets(3, seed=0), config=CONFIG,
+                              propagate_fn=ScreenStub(), steps=2, batch_size=1, seed=0,
+                              val_targets=quartets(2, seed=1), eval_every=1, training_objective=LSQ_MIX)
+    assert [v["objective"] for v in log["val"]] == [0.9, 0.2, 0.5]
+    assert log["best_step"] == 1 and log["best_val_loss"] == 0.2
