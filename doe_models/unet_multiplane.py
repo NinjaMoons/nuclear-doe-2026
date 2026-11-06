@@ -65,6 +65,8 @@ class FourInputUNet(nn.Module):
             raise ValueError("targets must have shape [B,4,1,H,W] with B>=1, H,W>=2")
         if not bool(torch.isfinite(targets).all()):
             raise ValueError("targets contain NaN/Inf")
+        if bool((targets < 0).any()) or bool((targets > 1).any()):
+            raise ValueError("targets are PNG/255 amplitudes and must lie in [0,1]; not clipped silently")
 
     def forward(self, targets: torch.Tensor) -> torch.Tensor:
         self._check(targets)

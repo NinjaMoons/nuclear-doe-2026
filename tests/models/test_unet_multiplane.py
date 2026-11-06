@@ -106,6 +106,7 @@ def _bad_inputs():
     return {
         "4d": good[:, :, 0], "three_planes": good[:, :3], "two_channels": good.expand(1, 4, 2, 32, 32),
         "int_dtype": (good * 255).to(torch.uint8), "nan": nan, "tiny": good[..., :1, :1],
+        "minus_one": torch.full_like(good, -1.0), "two": torch.full_like(good, 2.0),
         "not_tensor": good.numpy(),
     }
 
@@ -300,3 +301,46 @@ def test_fresh_process_reload_reproduces_phase(smoke, tmp_path):
     subprocess.run([sys.executable, "-c", script, str(ckpt), str(inp), str(out)],
                    check=True, cwd=root, env=env, capture_output=True, timeout=300)
     assert torch.equal(torch.load(out, weights_only=True), infer_phase(model, val))
+
+
+# --------------------------------------------------------------------------- strict checkpoint (review #19)
+def _tamper(src, dst, edit):
+    payload = torch.load(src, weights_only=True)
+    edit(payload)
+    torch.save(payload, dst)
+
+
+TAMPERS = {
+    "intensity_contract": lambda p: p.__setitem__("contract_version", "0-intensity"),
+    "wrong_wavelength": lambda p: p["config"].__setitem__("wavelength_m", 1e-6),
+    "wrong_distances": lambda p: p["config"].__setitem__("distances_m", [0.0241, 0.0253, 0.0265, 0.03]),
+    "wrong_head": lambda p: p["hparams"].__setitem__("head", "atan2"),
+    "wrong_in_planes": lambda p: p["hparams"].__setitem__("in_planes", 3),
+    "wrong_norm": lambda p: p["hparams"].__setitem__("norm", "batchnorm"),
+    "wrong_dtype": lambda p: p.__setitem__("dtype", "float16"),
+    "bad_depth": lambda p: p["hparams"].__setitem__("depth", True),
+    "missing_config": lambda p: p.pop("config"),
+}
+
+
+@pytest.mark.parametrize("name", list(TAMPERS))
+def test_load_rejects_incompatible_checkpoint(name, tmp_path):
+    good = tmp_path / "good.pt"
+    save_checkpoint(good, build_model(seed=0, **SMALL), config=CONFIG, train_log={})
+    bad = tmp_path / "bad.pt"
+    _tamper(good, bad, TAMPERS[name])
+    with pytest.raises(ValueError):
+        load_checkpoint(bad)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_checkpoint_roundtrip_keeps_dtype_and_global_rng(dtype, tmp_path):
+    model = build_model(seed=0, **SMALL).to(dtype)
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, model, config=CONFIG, train_log={})
+    rng_before = torch.get_rng_state()
+    loaded, payload = load_checkpoint(path)
+    assert torch.equal(torch.get_rng_state(), rng_before)
+    assert payload["dtype"] == str(dtype).replace("torch.", "")
+    x = torch.rand(1, 4, 1, 32, 32, dtype=dtype, generator=torch.Generator().manual_seed(9))
+    assert torch.equal(infer_phase(loaded, x), infer_phase(model, x))

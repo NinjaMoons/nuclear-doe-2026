@@ -20,7 +20,9 @@
 - Загрузка данных сюда не входит: корпус и split — #4; модуль получает тензоры и ID.
 
 ## Checkpoint
-`save_checkpoint(path, model, *, config, train_log, extra)` → SHA256 файла. Содержимое: format `doe_fourinput_unet_v1`, contract_version, hparams, dtype, state_dict, config, train_log, torch_version, extra — только тензоры и простые типы. `load_checkpoint(path)` использует `torch.load(weights_only=True)` (без произвольного pickle), проверяет format, восстанавливает архитектуру по hparams, `strict=True`, добавляет `sha256`. Checkpoint и веса в git не коммитятся.
+`save_checkpoint(path, model, *, config, train_log, extra)` → SHA256 файла. Содержимое: format `doe_fourinput_unet_v1`, contract_version, hparams, dtype, state_dict, config, train_log, torch_version, extra — только тензоры и простые типы. `load_checkpoint(path)` использует `torch.load(weights_only=True)` (без произвольного pickle) и **до восстановления весов строго проверяет**: format, `contract_version == 1.1-amplitude`, полный config == официальный `CaseConfigV1` (λ, pitch, все 4 z, размер), hparams целиком совпадают с архитектурой (base/depth, `in_planes=4`, `head=wrapped_linear`, `norm=groupnorm4`), dtype ∈ {float32, float64} и dtype всех весов; затем `load_state_dict(strict=True)`. Любое несоответствие — `ValueError`. Модель строится под `fork_rng` — загрузка не меняет глобальный RNG. Добавляет `sha256`. Checkpoint и веса в git не коммитятся.
+
+Вход `FourInputUNet.forward` обязан быть в [0,1] (PNG/255 = амплитуда): значения вне диапазона — `ValueError`, без молчаливого clip/нормировки.
 
 ## Подготовка к #5B (без обучения на настоящей физике)
 - В log обучения на каждом шаге — `grad_norm` (L2 по всем градиентам весов), в конце — `weights_delta_l2` (L2 изменения весов итоговой модели относительно начальной): «measured gradient и weights change» из критериев #5B.

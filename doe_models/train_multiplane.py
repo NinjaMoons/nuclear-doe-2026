@@ -74,11 +74,9 @@ def _check_int(value, name: str, minimum: int) -> None:
 
 
 def _check_targets(targets, config: CaseConfigV1) -> None:
-    FourInputUNet._check(targets)
+    FourInputUNet._check(targets)  # float dtype, [B,4,1,H,W], finite, range [0,1]
     if tuple(targets.shape[-2:]) != config.image_shape:
         raise ValueError(f"targets must be {config.image_shape} images")
-    if bool((targets < 0).any()) or bool((targets > 1).any()):
-        raise ValueError("targets must lie in [0,1]")
 
 
 def _json_config(config: CaseConfigV1) -> dict:
@@ -202,16 +200,44 @@ def save_checkpoint(path: str | Path, model: FourInputUNet, *, config: CaseConfi
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+_CHECKPOINT_DTYPES = {"float32": torch.float32, "float64": torch.float64}
+
+
 def load_checkpoint(path: str | Path) -> tuple[FourInputUNet, dict]:
-    """Load with `weights_only=True` (no arbitrary pickle); payload gains its file `sha256`."""
+    """Strictly load a checkpoint of THIS contract; payload gains its file `sha256`.
+
+    `torch.load(weights_only=True)` (no arbitrary pickle). Before restoring weights the
+    format, contract_version, full case config, every hparam (in_planes/head/norm too)
+    and dtype must match the current code exactly; otherwise ValueError. The model is
+    constructed under `fork_rng`, so loading does not change the global RNG.
+    """
     path = Path(path)
     payload = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(payload, dict) or payload.get("format") != CHECKPOINT_FORMAT:
         raise ValueError(f"{path} is not a {CHECKPOINT_FORMAT} checkpoint")
-    hp = payload["hparams"]
-    model = FourInputUNet(base_channels=hp["base_channels"], depth=hp["depth"])
-    model = model.to(dtype=getattr(torch, payload["dtype"]))
-    model.load_state_dict(payload["state_dict"], strict=True)
+    if payload.get("contract_version") != CONTRACT_VERSION_V1:
+        raise ValueError(f"checkpoint contract {payload.get('contract_version')!r} != {CONTRACT_VERSION_V1!r}")
+    if payload.get("config") != _json_config(CaseConfigV1()):
+        raise ValueError("checkpoint config does not match the official CaseConfigV1")
+    dtype = _CHECKPOINT_DTYPES.get(payload.get("dtype"))
+    if dtype is None:
+        raise ValueError(f"checkpoint dtype {payload.get('dtype')!r} is not float32/float64")
+    hp = payload.get("hparams")
+    if not isinstance(hp, dict):
+        raise ValueError("checkpoint hparams missing")
+    with torch.random.fork_rng(devices=[]):
+        model = FourInputUNet(base_channels=hp.get("base_channels"), depth=hp.get("depth"))
+    if model.hparams != hp:
+        raise ValueError(f"checkpoint hparams {hp} do not match this architecture {model.hparams}")
+    model = model.to(dtype=dtype)
+    state = payload.get("state_dict")
+    if not isinstance(state, dict) or any(not isinstance(v, torch.Tensor) or v.dtype != dtype
+                                          for v in state.values() if v.is_floating_point()):
+        raise ValueError("checkpoint state_dict missing or of a different dtype")
+    try:
+        model.load_state_dict(state, strict=True)
+    except RuntimeError as exc:
+        raise ValueError(f"checkpoint weights do not fit the architecture: {exc}") from None
     payload["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return model, payload
 
