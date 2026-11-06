@@ -4,6 +4,12 @@ One real phase [B,1,H,W] -> U = exp(i*phase) (A=1) -> injected propagator at the
 official distances -> raw intensities [B,4,1,H,W] -> per-plane max display -> MSE
 against targets in [0,1]. The propagator is always injected; this module contains no
 optics of its own.
+
+The loss/normalisation policy is PROVISIONAL: it is the v1.0 proposal of PR #15
+(intensity I=|U|^2, per-plane max). The official DOCX asks for reconstructed field
+modulus |U|; until the updated contract fixes the compared quantity and its
+normalisation, the whole policy lives only in `multiplane_loss` so it can be replaced
+in one place. The optimiser, forward and best-state logic do not depend on it.
 """
 from __future__ import annotations
 
@@ -16,9 +22,10 @@ import torch
 
 from doe_core.contracts_v1 import CaseConfigV1, FresnelField, FresnelPropagator, MultiPlaneResult
 
-__all__ = ["LOSS_POLICY", "multiplane_intensities", "multiplane_loss", "synthesize_multiplane"]
+__all__ = ["LOSS_POLICY", "LOSS_POLICY_STATUS", "multiplane_intensities", "multiplane_loss", "synthesize_multiplane"]
 
 LOSS_POLICY = "per_plane_max_display_mse_v1"
+LOSS_POLICY_STATUS = "provisional: PR #15 v1.0 proposal on I=|U|^2; DOCX |U| policy pending contract update"
 NUM_PLANES = 4
 _MAX_EPS = 1e-12
 _REAL_DTYPES = (torch.float32, torch.float64)
@@ -51,7 +58,10 @@ def multiplane_intensities(phase: torch.Tensor, config: CaseConfigV1,
 
 
 def multiplane_loss(intensities: torch.Tensor, targets: torch.Tensor):
-    """Return (total, per_plane[4]) for mean((I/max(I) - T)^2), max per plane, not detached."""
+    """Return (total, per_plane[4]) for mean((I/max(I) - T)^2), max per plane, not detached.
+
+    PROVISIONAL policy (see module docstring). Planes are weighted equally (1/4).
+    """
     if intensities.ndim != 5 or intensities.shape[1] != NUM_PLANES or intensities.shape != targets.shape:
         raise ValueError("intensities and targets must share shape [B,4,1,H,W]")
     peak = intensities.amax(dim=(-2, -1), keepdim=True)
@@ -145,6 +155,7 @@ def synthesize_multiplane(targets: torch.Tensor, config: CaseConfigV1, *,
         "steps": steps,
         "lr": float(lr),
         "loss_policy": LOSS_POLICY,
+        "loss_policy_status": LOSS_POLICY_STATUS,
         "plane_weights": [1.0 / NUM_PLANES] * NUM_PLANES,
         "illumination": "A=1, U=exp(i*phase)",
         "initial_phase": "uniform[-pi,pi) from torch.Generator(cpu).manual_seed(seed), float64, then cast",

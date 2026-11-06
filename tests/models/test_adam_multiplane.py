@@ -82,6 +82,9 @@ def wrap(phi: torch.Tensor) -> torch.Tensor:
 
 
 # --------------------------------------------------------------------------- loss
+# The three tests below pin the PROVISIONAL v1.0 policy (I/max(I) vs T). They are the
+# only policy-specific tests and must be rewritten if the updated contract switches
+# to the DOCX |U| policy; every other test calls multiplane_loss and stays valid.
 def test_loss_matches_hand_computed_value():
     intensities = torch.zeros(1, 4, 1, 2, 2, dtype=torch.float64)
     targets = torch.zeros_like(intensities)
@@ -147,6 +150,39 @@ def test_gradient_reaches_shared_phase():
     assert phase.grad.abs().sum() > 0
 
 
+def test_each_plane_loss_drives_the_same_phase():
+    """Every per-plane loss has its own non-zero gradient on the ONE phase, and the
+    total gradient is exactly their equal-weight (1/4) average: no plane is dropped."""
+    targets = quartet(dtype=torch.float64)
+    base = (0.05 * torch.arange(H * W, dtype=torch.float64).reshape(1, 1, H, W)).sin()
+    grads = []
+    for k in range(4):
+        phase = base.clone().requires_grad_(True)
+        _, per_plane = multiplane_loss(multiplane_intensities(phase, CONFIG, ScreenStub()), targets)
+        per_plane[k].backward()
+        grads.append(phase.grad)
+        assert torch.isfinite(phase.grad).all()
+        assert phase.grad.abs().sum() > 0, f"plane {k} does not reach the phase"
+    for a in range(4):
+        for b in range(a + 1, 4):
+            assert not torch.allclose(grads[a], grads[b])
+
+    phase = base.clone().requires_grad_(True)
+    total, _ = multiplane_loss(multiplane_intensities(phase, CONFIG, ScreenStub()), targets)
+    total.backward()
+    assert torch.allclose(phase.grad, sum(grads) / 4, rtol=1e-10, atol=1e-18)
+
+
+@pytest.mark.parametrize("plane", [0, 1, 2, 3])
+def test_changing_one_plane_target_changes_the_optimised_phase(plane):
+    targets = quartet()
+    changed = targets.clone()
+    changed[0, plane, 0] = changed[0, plane, 0].flip(-1)
+    a = synthesize_multiplane(targets, CONFIG, propagate_fn=ScreenStub(), steps=3, seed=0)
+    b = synthesize_multiplane(changed, CONFIG, propagate_fn=ScreenStub(), steps=3, seed=0)
+    assert not torch.allclose(a.phase_rad, b.phase_rad)
+
+
 def test_forward_rejects_bad_propagator_output():
     def bad(field, geometry):
         return FresnelField(field[..., :-1], geometry.output_pitch_m(H, W), geometry.distance_m)
@@ -207,6 +243,7 @@ def test_metadata_records_planes_and_policy(run32):
     assert md["method"] == "adam_multiplane"
     assert md["seed"] == 3 and md["steps"] == 300 and md["lr"] == 0.05
     assert md["loss_policy"] == "per_plane_max_display_mse_v1"
+    assert md["loss_policy_status"].startswith("provisional")
     assert md["distances_m"] == [0.0241, 0.0253, 0.0265, 0.0277]
     pitches = [p[1] for p in md["output_pitches_m"]]
     assert pitches == pytest.approx([10.0165625e-6, 10.5153125e-6, 11.0140625e-6, 11.5128125e-6], rel=1e-12)
