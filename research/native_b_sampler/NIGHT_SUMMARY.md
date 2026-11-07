@@ -1,4 +1,4 @@
-# #43 night summary — @MVRto01 desktop RTX 4070 Ti (07→08 Nov, research stopped 01:10 MSK)
+# #43 night summary — @MVRto01 desktop RTX 4070 Ti (07→08 Nov, status 00:40 MSK; R8-SCRATCH running)
 All numbers: VAL16 (8 A + 8 B), official path DOE.png u8 -> reload -> 4x Fresnel -> 4 PNG -> reload; seed mean (0,1);
 TEST never decoded; native TRAIN512 only (WhiteCollars only in the #41 pilot, weights kept local).
 
