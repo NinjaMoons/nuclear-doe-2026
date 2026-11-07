@@ -33,7 +33,10 @@ def main(ckpt, corpus, ref, out):
         if rmeta.get("sample_key") != s["key"]:
             raise SystemExit(f"reference {r} is {rmeta.get('sample_key')}, expected {s['key']}")
         t = time.perf_counter()
-        p = subprocess.run([sys.executable, "-m", "back_projection_stem.infer_neural_stem", "--checkpoint", str(ckpt),
+        import os
+        mod = os.environ.get("INFER_SCRIPT")   # optional research CLI script path (default: stock STEM module)
+        head = [sys.executable, mod] if mod else [sys.executable, "-m", "back_projection_stem.infer_neural_stem"]
+        p = subprocess.run(head + ["--checkpoint", str(ckpt),
                             "--targets", *[str(corpus / x) for x in s["paths"]], "--output-dir", str(d)],
                            capture_output=True, text=True)
         wall = time.perf_counter() - t
