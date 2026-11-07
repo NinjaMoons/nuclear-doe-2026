@@ -1,4 +1,4 @@
-# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 00:10 MSK
+# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 00:47 MSK
 
 Read this first after any quota reset / restart. Then `git fetch origin` and re-read #43, #49, #51, #8 and
 `git show origin/main:docs/hackathon/NIGHT_AGENT_PROTOCOL.md`. Never restart a job whose outputs already exist.
@@ -10,22 +10,19 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
   has no SSH keys). Mode B (separate Claude Code on the laptop + GitHub locks) unless the owner enables OpenSSH there.
   Bootstrap for it: `research/native_b_sampler/LAPTOP_BOOTSTRAP.md`.
 
-## Running / finished on HOST1 (check with `nvidia-smi --query-compute-apps=pid,process_name --format=csv`)
-- RECIPE (pre-registered `RESULT_DISTILL.md`): W32d3 24000 updates, const vs cosine lr, seeds 0/1.
-  Script `C:\nuclear-doe-operator\desktop-41\recipe\run.sh`, log `...\recipe\run.log`, out dirs
-  `...\recipe\W32_{cosine,const}_s{0,1}`, eval `...\recipe\eval\eval.json` (written at the end, then `ALL_DONE`).
-  Started 23:35; PID at 00:00 = 36824 (seed1 cosine). If `ALL_DONE` is in the log, analyse; do NOT rerun.
-- DONE earlier: WC pilot (WC_NEUTRAL), long native (V2 19b05dad), B75 (NEUTRAL), oracle, capacity (NEUTRAL),
-  distill (NEUTRAL). Evidence: #41/6711603518, #43/6712097137, /6712581459, /6712712710.
+## Running / finished on HOST1 (check `nvidia-smi --query-compute-apps=pid,process_name --format=csv`)
+- RUNNING: **R8-RES** (PLAN_R8RES.md): `C:
+uclear-doe-operator\desktop-418res\phasor_s{0,1}` then eval
+  `...8res\eval\eval.json` (log `...8res\eval.log`). Started 00:45. If eval.json exists: analyse vs R17
+  control (`...17\eval\eval.json` control_s0/s1 step 6000) with the plan's gate; do NOT rerun.
+- DONE (no promotion, V2 stays): WC_NEUTRAL, B75_NEUTRAL, CAPACITY_NEUTRAL, DISTILL_NEUTRAL, RECIPE_NEUTRAL
+  (W32 cosine 24k +.005), R17 INCONCLUSIVE. RESULT_*.md in research/native_b_sampler. #43 comments 6712097137,
+  6712581459, 6712712710, 6713131129 and the R17/R8-RES status.
 
 ## Queue (decide GO/NO-GO yourself; post evidence to #43)
-1. Analyse RECIPE vs V2 (P .61243 / SSIM .55356 / B .4516 / B own 25/32). Gate: dP >= +.01 vs V2, dB >= +.005,
-   orgsets10 & WC64 not worse -> CPU CLI replay (`research/desktop41_p0/replay_stem_val.py`) + #40-runtime drop-in
-   (`desktop-41\ref40\pkg\...\src`, acceptance) + raw sheets A64:060/B64:012/B64:016, then upload private asset.
-2. **R17-BRECOMB** (IDEA_CARD f9239c5, routed to MVRto01): code ready `research/native_b_sampler/r17_recomb.py`
-   (pool 118 verified, leak guard OK). Arms control/recomb x seeds 0/1, 6000 updates, init V2. MUST START BEFORE
-   02:00 MSK. Then eval with `research/wc_stem_pilot/pilot.py eval ... --evalsets C:/nuclear-doe-operator/desktop-41/evalsets`.
-3. If nothing promotable: P0 support (#8/#47 raw sheets, cross-host replay of V2), no new training after 02:00.
+1. Analyse R8-RES. If GO: CPU CLI replay needs the PhasorStemUNet class -> report as research candidate only,
+   packaging needs review (#8). If not GO: no new training after 02:00 -> P0 support (#47/#8), independent
+   cross-host replay of whatever the coordinator selects, defense numbers from RESULT_*.md.
 
 ## Time gates (MSK)
 02:00 no new training · 04:00 research stop · 05:30 freeze · 07:30-08:00 official submission (designated submitter only).
