@@ -168,7 +168,7 @@ def scratch(a):
     T = data["train"]["targets"].to(dev)
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(a.seed)
-        model = PhasorStemUNet(base_channels=16, depth=3)
+        model = PhasorStemUNet(base_channels=a.base_channels, depth=3)
         torch.nn.init.normal_(model.phasor.weight, std=0.5)
         torch.nn.init.zeros_(model.phasor.bias)
     model = model.to(dev)
@@ -180,13 +180,16 @@ def scratch(a):
     (out / "run_config.json").write_text(json.dumps({
         "experiment_id": "R8-SCRATCH", "seed": a.seed, "updates": a.updates, "lr": 1e-3, "batch": 4,
         "objective": tw.R3_NAME, "sampler": "randperm(512,gen(seed))[:4] (= pilot native)", "hparams": model.hparams,
-        "phasor_init": "weight N(0,.5), bias 0", "native_manifest_sha256": msha, "code_commit": commit,
+        "phasor_init": "weight N(0,.5), bias 0", "lr_schedule": a.lr_schedule, "native_manifest_sha256": msha, "code_commit": commit,
         "git_dirty": dirty, "script_sha256": sha(Path(__file__).read_bytes())}, indent=1), encoding="utf-8")
     ck = out / "checkpoints"
     ck.mkdir()
     hist, t0 = [], time.perf_counter()
     model.train()
     for step in range(1, a.updates + 1):
+        if a.lr_schedule == "cosine":
+            for g in opt.param_groups:
+                g["lr"] = 1e-5 + 0.5 * (1e-3 - 1e-5) * (1 + math.cos(math.pi * (step - 1) / a.updates))
         idx = torch.randperm(512, generator=gen)[:4].to(dev)
         batch = T[idx]
         opt.zero_grad(set_to_none=True)
@@ -220,6 +223,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--updates", type=int, default=6000)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--base-channels", type=int, default=16)
+    ap.add_argument("--lr-schedule", choices=("const", "cosine"), default="const")
     ap.add_argument("ckpts", nargs="*")
     a = ap.parse_intermixed_args()
     {"train": train, "eval": pilot.evaluate, "scratch": scratch}[a.cmd](a)
