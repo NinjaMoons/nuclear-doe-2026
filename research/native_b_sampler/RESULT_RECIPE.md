@@ -8,4 +8,4 @@ W32d3, native TRAIN512, R3, batch 4, seeds 0/1, 24000 updates; seed mean, VAL16 
 Cosine vs V2 per quartet: s0 dP +.0056 [+.0040,+.0077] 16/16, dSSIM +.0111; s1 dP +.0045 [+.0027,+.0062] 15/16.
 Cosine vs const: dP +.0019 [-.0012,+.0041]. Curves plateau ~.618 from 16k on (const 20k .6182 is the max).
 Gate dP >= +.01 vs V2 NOT met (+.005) and WC64 slightly worse -> V2 stays. The W16/12k V2 is within ~.005 of what
-this architecture + R3 reaches with 2x width and 2x updates. Wall: 9.1-9.9 min per 24k run on the 4070 Ti.
+this architecture + R3 reaches with 2x width and 2x updates. Wall: 8.2-8.8 min per 24k run on the 4070 Ti.
