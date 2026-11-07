@@ -1,0 +1,12 @@
+test_checkpoint_roundtrip (d4_stem.test_aug.T.test_checkpoint_roundtrip) ... ok
+test_global_rng_untouched (d4_stem.test_aug.T.test_global_rng_untouched) ... ok
+test_loss_equals_training_on_transformed_quartet (d4_stem.test_aug.T.test_loss_equals_training_on_transformed_quartet) ... /Users/guccilord228/Desktop/r14-d4/d4_stem/test_aug.py:43: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:837.)
+  self.assertLess(abs(float(loss_wrap) - float(loss_aug)), 1e-12)
+ok
+test_same_init_and_eval_identity (d4_stem.test_aug.T.test_same_init_and_eval_identity) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 1.253s
+
+OK
