@@ -60,6 +60,12 @@ def main():
         if not m or not re.search(r"STATUS\s*=\s*READY", b) or not re.search(r"(TO\s*=\s*@?|for\s+@?)(MVRto01|DESKTOP-T1K698V)|MVRto01\s*/\s*DESKTOP-T1K698V", b):
             continue
         tid = m.group(1)
+        other_hosts = set(re.findall(r"DESKTOP-[A-Z0-9]{5,}", b)) - {"DESKTOP-T1K698V"}
+        to = re.search(r"TO\s*=\s*\S+", b)
+        if to and "DESKTOP-T1K698V" not in to.group(0) and re.search(r"DESKTOP-[A-Z0-9]{5,}", to.group(0)):
+            continue                      # explicitly addressed to another physical host (e.g. the laptop)
+        if other_hosts and "DESKTOP-T1K698V" not in b:
+            continue
         if tid in s["processed"]:
             continue
         tasks.append({"task_id": tid, "comment_id": c["id"], "author": c["user"]["login"], "url": c["html_url"],
