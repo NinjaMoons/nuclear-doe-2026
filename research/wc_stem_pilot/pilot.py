@@ -218,8 +218,16 @@ def evaluate(a):
     tm.load_checkpoint = tw.research_load_checkpoint
     res = []
     t0 = time.perf_counter()
-    for c in a.ckpts:
-        row = {"checkpoint": str(c), "sha256": sha(Path(c).read_bytes())}
+    import shutil
+    (out / "ckpts").mkdir()
+    for src in a.ckpts:
+        # export dirs are keyed by checkpoint file name -> copy under a unique '<run>__<file>' name first
+        src = Path(src)
+        c = out / "ckpts" / (src.parent.parent.name + "__" + src.name)
+        if c.exists():
+            raise SystemExit(f"duplicate checkpoint name {c.name}")
+        shutil.copyfile(src, c)
+        row = {"checkpoint": str(src), "name": c.name, "sha256": sha(c.read_bytes())}
         for name, part in sets.items():
             d = {"splits": {"val": part}, "manifest_sha256": msha if name == "val16" else name, "synthetic": True}
             s = tm.evaluate_checkpoint(c, d, comps, out / name, dev, CaseConfigV1(), ("val",))
