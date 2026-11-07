@@ -1,0 +1,189 @@
+{
+ "splits": [
+  "val"
+ ],
+ "checkpoints": [
+  {
+   "name": "best.pt",
+   "checkpoint": "C:\\Users\\user\\AppData\\Local\\Temp\\r15runs\\treatment\\checkpoints\\best.pt",
+   "checkpoint_sha256": "e50449b71a31a618a02134a27ab2345f66f6d0edbe0803ebd74810aa82a1279b",
+   "kind": "best",
+   "step": 100,
+   "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+   "val": {
+    "n": 16,
+    "pearson_plane": [
+     0.5656330965439674,
+     0.6004305122740086,
+     0.5998653214227323,
+     0.5696709992041358
+    ],
+    "ssim_plane": [
+     0.4672683919627015,
+     0.5357891613395539,
+     0.544346018518182,
+     0.5114854565750905
+    ],
+    "pearson_mean": 0.583899982361211,
+    "ssim_mean": 0.514722257098882,
+    "worst_plane_pearson": 0.5656330965439674,
+    "worst_plane_ssim": 0.4672683919627015,
+    "worst_pair_pearson": 0.14938304496619767,
+    "undefined_pearson": 0,
+    "lit_frac": 0.06939506530761719,
+    "target_lit_frac": 0.10828018188476562,
+    "peak_pixel_power_frac": 0.0009714577365113207,
+    "collapse": false,
+    "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+   }
+  },
+  {
+   "name": "last.pt",
+   "checkpoint": "C:\\Users\\user\\AppData\\Local\\Temp\\r15runs\\treatment\\checkpoints\\last.pt",
+   "checkpoint_sha256": "dcedc21e1c51e5f02c8329b836ce613260ddde736e7a07263f03dd08ab6bc09e",
+   "kind": "last",
+   "step": 300,
+   "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+   "val": {
+    "n": 16,
+    "pearson_plane": [
+     0.564067413590495,
+     0.5938494892759987,
+     0.5890052382849298,
+     0.5577303715152627
+    ],
+    "ssim_plane": [
+     0.44870863336384487,
+     0.5145094020813066,
+     0.5140121911052125,
+     0.4939105798022935
+    ],
+    "pearson_mean": 0.5761631281666715,
+    "ssim_mean": 0.49278520158816436,
+    "worst_plane_pearson": 0.5577303715152627,
+    "worst_plane_ssim": 0.44870863336384487,
+    "worst_pair_pearson": 0.13035577471747783,
+    "undefined_pearson": 0,
+    "lit_frac": 0.09640884399414062,
+    "target_lit_frac": 0.10828018188476562,
+    "peak_pixel_power_frac": 0.0008237943883294636,
+    "collapse": false,
+    "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+   }
+  },
+  {
+   "name": "step_000100.pt",
+   "checkpoint": "C:\\Users\\user\\AppData\\Local\\Temp\\r15runs\\treatment\\checkpoints\\step_000100.pt",
+   "checkpoint_sha256": "40d062e6454a399b7c5de716c1889b8cbcde9dea234eb8e5437ffa210cfb556f",
+   "kind": "periodic",
+   "step": 100,
+   "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+   "val": {
+    "n": 16,
+    "pearson_plane": [
+     0.5656330965439674,
+     0.6004305122740086,
+     0.5998653214227323,
+     0.5696709992041358
+    ],
+    "ssim_plane": [
+     0.4672683919627015,
+     0.5357891613395539,
+     0.544346018518182,
+     0.5114854565750905
+    ],
+    "pearson_mean": 0.583899982361211,
+    "ssim_mean": 0.514722257098882,
+    "worst_plane_pearson": 0.5656330965439674,
+    "worst_plane_ssim": 0.4672683919627015,
+    "worst_pair_pearson": 0.14938304496619767,
+    "undefined_pearson": 0,
+    "lit_frac": 0.06939506530761719,
+    "target_lit_frac": 0.10828018188476562,
+    "peak_pixel_power_frac": 0.0009714577365113207,
+    "collapse": false,
+    "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+   }
+  },
+  {
+   "name": "step_000200.pt",
+   "checkpoint": "C:\\Users\\user\\AppData\\Local\\Temp\\r15runs\\treatment\\checkpoints\\step_000200.pt",
+   "checkpoint_sha256": "43e3a3956cfcfd2466b5babfa997be6442559eac5c24299c84a1ff84a2310bb0",
+   "kind": "periodic",
+   "step": 200,
+   "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+   "val": {
+    "n": 16,
+    "pearson_plane": [
+     0.5692317700335129,
+     0.5964849105779793,
+     0.6083638441533008,
+     0.5559877805450392
+    ],
+    "ssim_plane": [
+     0.46186878637489015,
+     0.5284623261728375,
+     0.5409897651310158,
+     0.4983964250012808
+    ],
+    "pearson_mean": 0.5825170763274581,
+    "ssim_mean": 0.5074293256700061,
+    "worst_plane_pearson": 0.5559877805450392,
+    "worst_plane_ssim": 0.46186878637489015,
+    "worst_pair_pearson": 0.15520020839034024,
+    "undefined_pearson": 0,
+    "lit_frac": 0.0761098861694336,
+    "target_lit_frac": 0.10828018188476562,
+    "peak_pixel_power_frac": 0.0009118058096186032,
+    "collapse": false,
+    "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+   }
+  },
+  {
+   "name": "step_000300.pt",
+   "checkpoint": "C:\\Users\\user\\AppData\\Local\\Temp\\r15runs\\treatment\\checkpoints\\step_000300.pt",
+   "checkpoint_sha256": "28f83bb61e1b2c67f1040526f29257a5101ae7ee2f196e53d84b316e861ecc9f",
+   "kind": "periodic",
+   "step": 300,
+   "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+   "val": {
+    "n": 16,
+    "pearson_plane": [
+     0.564067413590495,
+     0.5938494892759987,
+     0.5890052382849298,
+     0.5577303715152627
+    ],
+    "ssim_plane": [
+     0.44870863336384487,
+     0.5145094020813066,
+     0.5140121911052125,
+     0.4939105798022935
+    ],
+    "pearson_mean": 0.5761631281666715,
+    "ssim_mean": 0.49278520158816436,
+    "worst_plane_pearson": 0.5577303715152627,
+    "worst_plane_ssim": 0.44870863336384487,
+    "worst_pair_pearson": 0.13035577471747783,
+    "undefined_pearson": 0,
+    "lit_frac": 0.09640884399414062,
+    "target_lit_frac": 0.10828018188476562,
+    "peak_pixel_power_frac": 0.0008237943883294636,
+    "collapse": false,
+    "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+   }
+  }
+ ],
+ "best_by_objective": {
+  "name": "best.pt",
+  "step": 100
+ },
+ "best_by_val_pearson": {
+  "name": "best.pt",
+  "step": 100,
+  "pearson_mean": 0.583899982361211
+ },
+ "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+ "evaluation": "export_run per quartet: phase -> DOE.png -> reload -> 4 Fresnel -> 4 PNG -> reload -> Pearson/SSIM",
+ "note": "best_by_objective is the training selection; best_by_val_pearson is a separate VAL report. Test is opened only explicitly (--eval-splits test) for a checkpoint fixed on VAL."
+}

@@ -1,0 +1,10 @@
+{
+ "arm": "base",
+ "objective": "research_r3_lsq_plus_0.3_centered_corr_plus_0.1_contract_v0",
+ "lambda": 0.0,
+ "init_checkpoint_sha256": "569e170065cca160eb6ce64a0707d81e5e016857b0962498c156cba80f6d3b7d",
+ "train_r15_sha256": "b7cd68420b71b74a8699a0c5c7d96896f1a6db4763c59cc9935051c42902a59b",
+ "l_ax_sha256": "8492026834334f1df66752630070ec01e77307d4abcec383752bfe33bb3a7d2b",
+ "torch": "2.9.0+cpu",
+ "note": "research only; never for #8"
+}

@@ -1,0 +1,64 @@
+{
+ "driver": "python -m doe_models.train_multiplane",
+ "argv": [
+  "--manifest",
+  "C:/Users/user/AppData/Local/Temp/c4b/manifest_expanded.json",
+  "--out-dir",
+  "C:/Users/user/AppData/Local/Temp/r15runs/base",
+  "--device",
+  "cpu",
+  "--updates",
+  "300",
+  "--eval-every",
+  "100",
+  "--seed",
+  "0",
+  "--threads",
+  "8",
+  "--objective",
+  "research_r3_lsq_plus_0.3_centered_corr_plus_0.1_contract_v0",
+  "--no-eval"
+ ],
+ "training_objective": "research_r3_lsq_plus_0.3_centered_corr_plus_0.1_contract_v0",
+ "updates": 300,
+ "eval_every": 100,
+ "checkpoint_every": 100,
+ "batch_size": 4,
+ "lr": 0.001,
+ "seed": 0,
+ "hparams": {
+  "base_channels": 16,
+  "depth": 3
+ },
+ "optimizer": "Adam (defaults)",
+ "precision": "float32",
+ "amp": false,
+ "selection": "best validation objective (same as training objective)",
+ "checkpoints": "weights only, NOT resumable (no optimizer/RNG state)",
+ "smoke_steps": 0,
+ "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+ "manifest_path": "C:\\Users\\user\\AppData\\Local\\Temp\\c4b\\manifest_expanded.json",
+ "split_sizes": {
+  "train": 512,
+  "val": 16,
+  "test": 16
+ },
+ "corpus_ids": [
+  "A208",
+  "A64",
+  "B208",
+  "B64"
+ ],
+ "synthetic": true,
+ "contract_version": "1.1-amplitude",
+ "code_commit": "95077bfefd1457c2abc6f78b284125aa299c869b",
+ "git_dirty": false,
+ "code_sha256": {
+  "doe_models/train_multiplane.py": "7d443d78563cdd5ccf014420eea4e38c10639ad7ebec6f731785ea1f28ff2a2d",
+  "doe_models/unet_multiplane.py": "4798e492d7a68413cff27fb3dd72924e82543199864e62bd48e174c6b70a7418",
+  "doe_models/adam_multiplane.py": "39e49edd23f97226427320eaecec6a5ddc47f9ff1b4d60aee12aa3707effa870",
+  "doe_core/contracts_v1.py": "a6c5290580ad99b6eb9664300ac7ce27974f912e0538c19974d6971579a0b282",
+  "doe_core/observables.py": "79ee7e02ab893c1ecf4b323f906ab599d03e0c215c77f145139dce48e1747f10",
+  "doe_core/fresnel.py": "3bec8ce857501ae1a270f09a077468550b7dc200e0af3af93b915befc9cb96f5"
+ }
+}
