@@ -1,4 +1,4 @@
-# Adam artifact collector (#6)
+# Adam and trained-NN artifact collector (#6)
 
 `summarize_adam_run(run_dir)` and its module CLI collect a completed real Adam
 export. They verify official configuration, amplitude policies, ordered plane
@@ -42,5 +42,46 @@ data transfer. Collector unit success proves neither gate. Display policy is
 float64 `ratio=A/max(A)` per plane, then `floor(255*ratio+0.5)`; input PNG/255
 already denotes amplitude. The collector performs no display conversion.
 
-A trained-model benchmark extension is pending real training, a checkpoint,
-provenance and comparable timing/quality measurements on the same quartet.
+## Trained NN summary and paired NN/Adam comparison (#6B)
+
+All export checks (both methods) additionally require `output_pitches_m` equal to
+`CaseConfigV1().plane(i).output_pitch_m(128, 128)` (rtol 1e-12, the exporter's own
+tolerance), `planes[i].reconstruction == reconstructed_{i+1:02d}.png`, and a DOE.png
+that `load_doe_png` accepts (PNG, L, uint8, 128x128). Nothing is resampled or reordered.
+
+`summarize_run(run_dir)` (CLI `--run-dir DIR --method any`) returns a schema-2 summary
+of an Adam or `fourinput_unet` export. For NN it requires checkpoint SHA256/format,
+40-hex code commit, contract version, hparams, dtype and nested `training.seed/steps`;
+missing or malformed provenance fails. `training_verified` is copied as recorded
+(`false` from the inference CLI, `not_recorded` from the training driver export);
+independent acceptance of training is never inferred from a checkpoint
+(`independent_training_acceptance = not_recorded_by_collector`). Load/inference times
+are reported only when the export records them with their scope, otherwise
+`not_measured`; the driver export runs batched inference and records neither.
+
+`compare_runs(pairs)` and the CLI compare already exported runs; they rerun nothing:
+
+```powershell
+python -m doe_experiments.benchmark --pair - NN_EXPORT\000 ADAM_EXPORT\A64_014 --pair - NN_EXPORT\001 ADAM_EXPORT\A64_015 --output artifacts/paired-NEW.json
+```
+
+`SAMPLE_KEY` `-` uses the key recorded in the exports; an explicit key must agree with
+any recorded key (the Adam CLI export records none, the inference CLI export neither).
+Each pair must have the same sample_key, the same ORDERED four target SHA256
+(`ordered target quartet mismatch at plane i`, no sorting), identical contract,
+config, native output pitches, PNG/SSIM policies, phase dtype and synthetic flag.
+All pairs must share one NN checkpoint/commit and one fixed Adam seed/steps/lr/dtype.
+
+Per metric m: `M_i = mean of the 4 plane scores of quartet i` per method and
+`delta_i = M_i(NN) - M_i(Adam)`. A quartet with any undefined Pearson has undefined
+quartet Pearson and delta; it is listed in `undefined_sample_keys`, never set to 0.
+The report has A, B and pooled blocks (n, method means on the same defined pairs,
+delta mean/median/min/max, Q1/Q3/IQR with numpy `linear` = type 7, wins/ties/losses),
+per-plane means and mean deltas, and the worst pair. ALL is the half-sum of the A and
+B means only for equal defined group sizes, otherwise it is the pooled mean and says so.
+The unit is the quartet: 4 planes are not 4 independent observations. No CI, p-values,
+Wilcoxon or bootstrap. Timings stay per method with their scopes;
+`timing_comparison` is `not_comparable` and no speedup is reported.
+
+The collector does not prove either acceptance gate and does not produce real paired
+measurements; those require the gates on the integration HEAD and coordinator approval.
