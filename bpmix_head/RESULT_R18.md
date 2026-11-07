@@ -19,3 +19,34 @@ Scientific conclusion (seed 0; seed 1 running): physically structured HF (B_k) m
 ~60% of the free-phase gain, but a single shared network trained with R3 converts only a small part of that into VAL
 quality; the gap is amortisation of target-specific high-frequency phase, not the optics and not a missing input.
 Checkpoints: results/CHECKPOINT_SHA256.txt (local, not committed). Seed 1 replication result will be appended.
+
+---
+# Seed 1 replication and seed-mean verdict, 08.11.2026 ~02:25 MSK
+Same host, script and init; sampler gen(30001); 6000 updates per arm.
+
+| arm | P | SSIM | A P/S | B P/S | B own | B margin | B inter-z full/low/band | worst P/S | mask HF |
+|---|---|---|---|---|---|---|---|---|---|
+| control s1 | .6130 | .5579 | .7735/.7498 | .4526/.3659 | 26/32 | .100 | .677/.938/.593 | .595/.513 | .145 |
+| bpmix s1 | .6135 | .5544 | .7741/.7448 | .4528/.3639 | **24/32** | .103 | .678/.938/.598 | .599/.509 | .139 |
+
+Seed 1 paired, bpmix − control: dP +.0004 [−.0004, +.0014] (10/16), dSSIM **−.0035** [−.0079, −.0004] (4/16), dB own −2/32.
+
+**Seed mean** (s0, s1; per-quartet means, paired bootstrap 2000), `results/r18_seedmean.json`:
+- dP +.0023 [+.0015, +.0032] (16/16); dSSIM +.0004 [−.0030, +.0028];
+- dB_P +.0018 [+.0011, +.0025]; dA_P +.0028; dB margin +.0025 [+.0006, +.0047];
+- dB own −.125 per quartet (s0 26=26, s1 24<26); worst plane P .5960 vs .5941.
+- References: v2 .6124/.5536; R8-RES (#43) dP +.0002.
+
+Visual (s1 sheets `results/r18_s1_sheet_*.png`): indistinguishable from control. B64:012 ghosting is the same (cross-plane Pearson .18–.37 in both).
+
+## Final verdict R18: **NO_GO (negligible).**
+- The seed-0 gain of +.004 did not replicate (s1 +.0004).
+- The seed mean of +.002 P is ~5× below the pre-registered gate.
+- SSIM and B own do not improve.
+
+## Scientific conclusion (for #47)
+- **Per-quartet optimisation:** a physically structured HF path (complex mixing of exact back-projections B_k) reaches ~60% of the free-phase Adam gain on TRAIN-B quartets.
+- **Trained network:** the same path inside a network trained with R3 gives +.002 P on VAL and no change in ghosting. The network uses the head heavily (|Σa_k B_k| .90, Δφ 1.83 rad), yet the output masks stay smooth (HF .07–.15 vs teacher .6–.7).
+- **G4 M0–M4 test:** coherent HF only works together with its own LF (a V2 LF + oracle HF transplant gives +.012 vs +.23 for the oracle).
+
+Physically structured HF therefore helps **per-quartet optimisation, not the trained one-forward network**. The B deficit is the amortisation of target-specific coherent HF phase, not optics, not a missing input and not head capacity. Per-quartet ceilings must not be reported as contest-model quality.

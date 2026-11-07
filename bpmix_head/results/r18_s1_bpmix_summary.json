@@ -1,0 +1,126 @@
+{
+ "eval": {
+  "splits": [
+   "val"
+  ],
+  "checkpoints": [
+   {
+    "name": "step_006000.pt",
+    "checkpoint": "/Users/guccilord228/Desktop/r12-runs/r18_s1_bpmix/step_006000.pt",
+    "checkpoint_sha256": "3048b6adf1a98534b5af12566ba367b600b0cdfbfabb5950083ea1b41fcc4512",
+    "kind": null,
+    "step": null,
+    "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+    "val": {
+     "n": 16,
+     "pearson_plane": [
+      0.5994233958379162,
+      0.6242008314639813,
+      0.6317618514371756,
+      0.5985399036684597
+     ],
+     "ssim_plane": [
+      0.5089843518979829,
+      0.5687300754163215,
+      0.5940525527152375,
+      0.545707801124672
+     ],
+     "pearson_mean": 0.6134814956018831,
+     "ssim_mean": 0.5543686952885535,
+     "worst_plane_pearson": 0.5985399036684597,
+     "worst_plane_ssim": 0.5089843518979829,
+     "worst_pair_pearson": 0.16302224376928265,
+     "undefined_pearson": 0,
+     "lit_frac": 0.07434272766113281,
+     "target_lit_frac": 0.10828018188476562,
+     "peak_pixel_power_frac": 0.0011375078851323264,
+     "collapse": false,
+     "collapse_rule": "lit fraction (PNG>0.5) < 0.2 * target, or mean Pearson < 0.05 (diagnostic, not a hard gate)"
+    }
+   }
+  ],
+  "best_by_objective": null,
+  "best_by_val_pearson": {
+   "name": "step_006000.pt",
+   "step": null,
+   "pearson_mean": 0.6134814956018831
+  },
+  "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+  "evaluation": "export_run per quartet: phase -> DOE.png -> reload -> 4 Fresnel -> 4 PNG -> reload -> Pearson/SSIM",
+  "note": "best_by_objective is the training selection; best_by_val_pearson is a separate VAL report. Test is opened only explicitly (--eval-splits test) for a checkpoint fixed on VAL."
+ },
+ "log": [
+  {
+   "step": 1,
+   "objective": 0.35152480589237683,
+   "elapsed_s": 0.386297499993816
+  },
+  {
+   "step": 500,
+   "objective": 0.41939414148106235,
+   "elapsed_s": 125.61705458298093
+  },
+  {
+   "step": 1000,
+   "objective": 0.4897438780109296,
+   "elapsed_s": 245.05562566698063
+  },
+  {
+   "step": 1500,
+   "objective": 0.49732059854438027,
+   "elapsed_s": 364.78194616700057
+  },
+  {
+   "step": 2000,
+   "objective": 0.33675064449283065,
+   "elapsed_s": 491.30408908298705
+  },
+  {
+   "step": 2500,
+   "objective": 0.32069887965798377,
+   "elapsed_s": 620.0154484169907
+  },
+  {
+   "step": 3000,
+   "objective": 0.4159775969767094,
+   "elapsed_s": 754.6911940000136
+  },
+  {
+   "step": 3500,
+   "objective": 0.5924069029740068,
+   "elapsed_s": 879.8790295419749
+  },
+  {
+   "step": 4000,
+   "objective": 0.5217813514495903,
+   "elapsed_s": 998.8997432499891
+  },
+  {
+   "step": 4500,
+   "objective": 0.34822468842496074,
+   "elapsed_s": 1137.395027999999
+  },
+  {
+   "step": 5000,
+   "objective": 0.288220682549966,
+   "elapsed_s": 1276.8579057920142
+  },
+  {
+   "step": 5500,
+   "objective": 0.2524369751230559,
+   "elapsed_s": 1450.1918607080006
+  },
+  {
+   "step": 6000,
+   "objective": 0.4493517793279575,
+   "elapsed_s": 1605.1775393749704
+  }
+ ],
+ "arm": "bpmix",
+ "seed": 1,
+ "updates": 6000,
+ "v2_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+ "script_sha256": "937866cb5deeef57e297994487436cb802540dbc5d02ac3cf3addbfb6806238f",
+ "model_sha256": "e6cf67dd0985d997ac66a074c72c5f8a526f7738d56fe0aa9e9eda3bf8ae66cd",
+ "train_s": 1605.1775393749704
+}
