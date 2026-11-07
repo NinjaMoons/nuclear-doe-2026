@@ -19,6 +19,8 @@ Measured (d4_audit.py, complex128, fields: random phase, structured chirp, const
 | c63.5 torch.flip, pixel-grid centre | 0.50 | 0.23 | 0.50 | 0.22 |
 Group: closed, inverses, 8 distinct elements (both conventions). Codec (c64): encode(g phi) == g encode(phi) exactly;
 DOE.png -> decode -> 4 Fresnel -> official uint8 display: max 0 code difference vs transformed display.
+Single reflection fx in c63.5, random phase, amplitude rel per z: 0.0021 / 0.063 / 0.117 / 0.165 — nearly exact only at
+z1 where the output pitch 10.017 um ~ input pitch (the 1-pixel shift almost cancels), wrong elsewhere.
 Verdict: D4_PHYSICS_PASS for c64; standard flip/rot90 about the pixel centre (c63.5) is NOT an exact symmetry (FAIL).
 
 Data-distribution caveats (not physics): (1) under c64 the row/column with index 0 is mapped onto itself, so a

@@ -36,7 +36,7 @@ class TestD4(unittest.TestCase):
             self.assertLess(rel(backprojection_features(apply(w, T)), apply(w, F0)), 1e-12)
 
     def test_pixel_centre_flip_is_not_exact(self):
-        U = rand_phase(2); g = CFG.plane(0); FU = propagate_fresnel(U, g).field
+        U = rand_phase(2); g = CFG.plane(3); FU = propagate_fresnel(U, g).field
         self.assertGreater(rel(propagate_fresnel(apply(("fx",), U, "c63.5"), g).field.abs(), apply(("fx",), FU, "c63.5").abs()), 1e-2)
 
 
