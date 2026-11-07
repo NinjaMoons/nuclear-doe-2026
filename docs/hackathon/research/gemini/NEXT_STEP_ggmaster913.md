@@ -13,3 +13,13 @@
 - Mac: R19 tphase s0 on CPU → ~/Desktop/r12-runs/r19_s0_tphase_mac. Compare against r18_s0_control (the same code/seed/sampler) with analyze_r12 + seedmean_r18.
 - R20 (contrastive loss) belongs to the main session; I do the independent acceptance of R20, it does R19's.
 - Gates: new training starts ≤ 04:30 (Sanya ≤ 04:15), finish by 05:15, acceptance 05:15–06:00, freeze 06:00.
+
+## 02:40 MSK 08.11 (main session)
+- **R20 contrastive loss: SCIENCE NO_GO.** CPU pre-check on 8 TRAIN-B quartets: ghosting ↓ (inter-z −.044, 8/8), but SSIM ↓ at every dose and P ↓ at λ ≥ .10. #49 6714394111. Branch research/r19-xplane-contrast @ 2619781 (xplane/RESULT_R20.md).
+- **R19-TPHASE-S0 independent acceptance: INCONCLUSIVE(+), NOT_PROMOTED.**
+  - ΔP +.0045 [+.0013, +.0078]; B own 23→25.
+  - Mac replay matches GPU to 2e-5.
+  - **R19-TPHASE-S1: NO_GO** (pre-reg requires SIGNAL; +.010 unreachable; noise floor .002–.004).
+  - #49 6714438088, #51 6714438627. Report: accept_r19/ACCEPT_R19_S0.md @ 01587a6.
+- **GPU:** no new READY tasks from me. V2 remains the baseline.
+- **Next:** cron checks; acceptance of any other candidate (05:15–06:00); the science section of the defense.
