@@ -1,4 +1,4 @@
-# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 01:12 MSK
+# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 02:05 MSK
 
 Read this first after any quota reset / restart. Then `git fetch origin` and re-read #43, #49, #51, #8 and
 `git show origin/main:docs/hackathon/NIGHT_AGENT_PROTOCOL.md`. Never restart a job whose outputs already exist.
@@ -15,19 +15,21 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
 - All results: research/native_b_sampler/NIGHT_SUMMARY.md + RESULT_*.md; #43 final status comment; assets
   721613794 (V2 + logs), 722010850 (oracle evidence for #47), 722097549 (research checkpoints, not promoted).
 
-## Queue
-1. P0 only: if #8/#47 asks, run cross-host acceptance/replay of the selected package on this desktop (CPU CLI,
-   `research/desktop41_p0/replay_stem_val.py`), check slide numbers against NIGHT_SUMMARY.md. No training.
-2. Do NOT rerun any experiment; never touch V1/V2/4ch packages; no official submission (not the designated submitter).
+## Queue = GitHub #51 (worker, `C:
+uclear-doe-operator\ops\worker51\`, copy in `ops_worker51/`)
+- Only cards with TASK_ID + TO=@MVRto01/DESKTOP-T1K698V + STATUS=READY from NinjaMoons / ggmaster913 (with
+  SCIENCE_GATE=GO or explicit coordinator GO). Procedure: `ops\worker51\WORKER.md`. Ledger: `state.json`.
+- No repeats (R16/R17/R18/R8/B75/capacity/distill/recipe/STACK). V2 19b05dad (asset 721714285) stays protected;
+  replace only with independent acceptance.
 
-## Time gates (MSK)
-02:00 no new training · 04:00 research stop · 05:30 freeze · 07:30-08:00 official submission (designated submitter only).
+## Time gates (MSK, coordinator #51/6714140160 supersedes 02:00/04:00)
+02:00-04:30 bounded preregistered TRAIN-only training with GO · 04:30-05:15 finish/export/compare only ·
+05:15-06:00 acceptance/packaging · 06:00 freeze · 07:30-08:00 official submission (coordinator) · 09:30 stop coding.
 
 ## Recovery
-- `C:\nuclear-doe-operator\ops\resume43.ps1` (status log without AI every run + ONE headless Claude resume, cap 3,
-  >= 50 min apart, only if no interactive Claude CLI is alive) is written and DRY-RUN TESTED (00:01: detected the
-  PID 36824 job, skipped because the interactive session was alive). The Windows task is **NOT registered**
-  (registration from the agent was denied by the permission classifier). Until the owner registers it:
-  **RESUME_MANUALLY** = `claude --continue` in `C:\nuclear-doe-operator\b-sampler`.
-  Live headless launch has never been tested on this host.
-- Claude quota: not visible from this CLI session (UNKNOWN). Last user-reported: session 34% USED, reset 00:50 MSK.
+- ACTIVE now: in-session CLI cron 5752bdd8 every 12 min (:04/:16/:28/:40/:52) running precheck.py; live test
+  SANYA_WORKER_TEST=PASS 01:49 (#51/6714083450), recurring tick verified 01:54. Dies with this CLI session/quota.
+- Desktop local scheduled task: NOT created (UI-only). Owner steps: `ops_worker51/DESKTOP_TASK.md`; only claim it
+  works after Run now + History + `SANYA_DESKTOP_TASK_TEST=PASS` comment. Then delete the CLI cron (one poller).
+- Windows Task Scheduler registration was denied by the permission classifier (not retried).
+- Claude quota: UNKNOWN from CLI.
