@@ -25,7 +25,16 @@ def r16_objective(amplitudes, targets, objective=tm.CONTRACT_OBJECTIVE):
     if objective != R16_NAME:
         return _r3(amplitudes, targets, objective)
     base, info = _r3(amplitudes, targets, tw.R3_NAME)
-    lab = STORE.lookup(targets)                                  # KeyError if any quartet is unlabeled/misaligned
+    found = [tensor_key(targets[b]) in STORE.records for b in range(targets.shape[0])]
+    if not any(found):
+        # VAL batch inside the driver's validate(): no labels by design (TRAIN-only cache). Report the plain R3 value
+        # so the logged val objective is comparable to the control arm; no distillation term, no gradient use.
+        out = dict(info)
+        out["l_opt"] = None
+        return base, out
+    if not all(found):
+        raise KeyError("partially labelled batch: label/batch misalignment")   # never silently mix
+    lab = STORE.lookup(targets)
     dist = optical_distill(amplitudes, lab)
     out = dict(info)
     out["l_opt"] = float(dist.detach())
