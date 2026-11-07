@@ -51,8 +51,14 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _git_sha() -> str | None:
-    result = subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[1]),
-                             "rev-parse", "HEAD"], capture_output=True, text=True)
+    source_root = Path(__file__).resolve().parents[1]
+    if not (source_root / ".git").exists():
+        return None
+    try:
+        result = subprocess.run(["git", "-C", str(source_root), "rev-parse", "HEAD"],
+                                capture_output=True, text=True)
+    except FileNotFoundError:
+        return None
     return result.stdout.strip() if result.returncode == 0 else None
 
 

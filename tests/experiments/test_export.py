@@ -2,6 +2,7 @@
 from dataclasses import replace
 import json
 from pathlib import Path
+import subprocess
 
 import numpy as np
 from PIL import Image
@@ -9,6 +10,7 @@ import pytest
 import torch
 
 from doe_core.contracts_v1 import FresnelField, PairMetricsV1
+import doe_experiments.export as export_module
 from doe_experiments.export import ExportComponents, export_run, sha256
 from doe_experiments.phase_codec import load_doe_png, save_doe_png
 
@@ -55,6 +57,53 @@ def targets(tmp_path):
         Image.fromarray(image).save(path)
         paths.append(path)
     return paths
+
+
+def test_git_sha_ignores_enclosing_checkout(tmp_path, monkeypatch):
+    (tmp_path / ".git").mkdir()
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    monkeypatch.setattr(export_module, "__file__", str(extracted / "doe_experiments" / "export.py"))
+
+    def unexpected_git(*args, **kwargs):
+        pytest.fail("An extracted archive should not query Git")
+
+    monkeypatch.setattr(subprocess, "run", unexpected_git)
+    assert export_module._git_sha() is None
+
+
+def test_export_completes_with_git_missing(tmp_path, monkeypatch):
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(export_module, "__file__", str(tmp_path / "doe_experiments" / "export.py"))
+
+    def missing_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", missing_git)
+    output = tmp_path / "run"
+    export_run(targets(tmp_path), torch.zeros((1, 1, 128, 128)), output,
+               components=fixture_components([]), synthetic_test=True)
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["completed"] and manifest["git_sha"] is None
+
+
+@pytest.mark.parametrize("worktree", [False, True], ids=["checkout", "worktree"])
+def test_git_sha_reads_own_checkout(tmp_path, monkeypatch, worktree):
+    marker = tmp_path / ".git"
+    if worktree:
+        marker.write_text("gitdir: other/path\n", encoding="utf-8")
+    else:
+        marker.mkdir()
+    monkeypatch.setattr(export_module, "__file__", str(tmp_path / "doe_experiments" / "export.py"))
+    commit = "a" * 40
+
+    def read_git(args, *, capture_output, text):
+        assert args == ["git", "-C", str(tmp_path.resolve()), "rev-parse", "HEAD"]
+        assert capture_output and text
+        return subprocess.CompletedProcess(args, 0, stdout=commit + "\n")
+
+    monkeypatch.setattr(subprocess, "run", read_git)
+    assert export_module._git_sha() == commit
 
 
 def test_saved_doe_is_primary_source_and_hashes_reproducible(tmp_path):
