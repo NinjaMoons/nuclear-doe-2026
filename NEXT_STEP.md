@@ -31,10 +31,10 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
 02:00 no new training · 04:00 research stop · 05:30 freeze · 07:30-08:00 official submission (designated submitter only).
 
 ## Recovery
-- `opsesume43.ps1` (status log without AI every run + ONE headless Claude resume, cap 3, >= 50 min apart, only if
-  no interactive Claude CLI is alive) is written and DRY-RUN TESTED (00:01: detected PID 36824 job, skipped because
-  the interactive session was alive). The Windows task is **NOT registered** (registration from the agent was
-  denied by the permission classifier). Until the owner registers it: **RESUME_MANUALLY** = `claude --continue`
-  in `C:
-uclear-doe-operator-sampler`. Live headless launch has never been tested on this host.
+- `C:\nuclear-doe-operator\ops\resume43.ps1` (status log without AI every run + ONE headless Claude resume, cap 3,
+  >= 50 min apart, only if no interactive Claude CLI is alive) is written and DRY-RUN TESTED (00:01: detected the
+  PID 36824 job, skipped because the interactive session was alive). The Windows task is **NOT registered**
+  (registration from the agent was denied by the permission classifier). Until the owner registers it:
+  **RESUME_MANUALLY** = `claude --continue` in `C:\nuclear-doe-operator\b-sampler`.
+  Live headless launch has never been tested on this host.
 - Claude quota: not visible from this CLI session (UNKNOWN). Last user-reported: session 34% USED, reset 00:50 MSK.
