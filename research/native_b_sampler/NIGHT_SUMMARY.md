@@ -1,4 +1,4 @@
-# #43 night summary — @MVRto01 desktop RTX 4070 Ti (07→08 Nov, status 00:40 MSK; R8-SCRATCH running)
+# #43 night summary — @MVRto01 desktop RTX 4070 Ti (07→08 Nov, research closed 01:10 MSK)
 All numbers: VAL16 (8 A + 8 B), official path DOE.png u8 -> reload -> 4x Fresnel -> 4 PNG -> reload; seed mean (0,1);
 TEST never decoded; native TRAIN512 only (WhiteCollars only in the #41 pilot, weights kept local).
 
@@ -13,6 +13,8 @@ TEST never decoded; native TRAIN512 only (WhiteCollars only in the #41 pilot, we
 | recipe | W32 24k cosine vs V2 | +.0051 | +.0088 | +.0054 | NEUTRAL (gate +.01) |
 | R17 | independent B recombination | +.0031 | +.0066 | +.0032 | INCONCLUSIVE |
 | R8-RES | phasor-residual head | +.0002 | +.0031 | +.0013 | INCONCLUSIVE |
+| R8-SCRATCH | phasor head from scratch, W16 12k vs W16 | +.0083 | +.0159 | +.0075 | INCONCLUSIVE (+) |
+| STACK | phasor scratch + W32 + cosine 24k vs V2 | +.0071 | +.0158 | +.0091 | NOT PROMOTED (WC64 -.015) |
 | Adam oracle (diagnostic) | 2000 Adam steps from V2 phase | .7952 | .7415 | .6526 (own 31/32) | NOT a contest method |
 
 Why B ghosting persists (for #47):
@@ -24,4 +26,5 @@ Why B ghosting persists (for #47):
   -> .48), and the extra phasor head stays far from phase singularities.
 - Honest claim: "one forward pass, no optimiser at inference; ~.61 Pearson; B shows cross-plane ghosting that is a
   limitation of the learned inverse, not of the optics" — supported by the oracle sheet above.
-Best numeric research checkpoint (not promoted, gate not met): W32 cosine 24k s0 P .6180 / SSIM .5649.
+Best research checkpoint (not promoted, gate not met): STACK s1 24k P .6203 / SSIM .5718 / B .4617 (SSIM better than
+V2 on 16/16 VAL quartets, but WC64 -.015, A own 31/32, ghosting unchanged).
