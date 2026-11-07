@@ -150,13 +150,13 @@ def train(a):
         raise SystemExit("arm must be native or native_wc")
     cfg = CaseConfigV1()
     prop = tm.production_components().propagate
-    model = build_stem_model(seed=a.seed).to(dev)
+    model = build_stem_model(seed=a.seed, base_channels=a.base_channels, depth=a.depth).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     gen, gen_w = torch.Generator().manual_seed(a.seed), torch.Generator().manual_seed(10000 + a.seed)
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     dirty = bool(subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
     run_cfg = {"arm": a.arm, "seed": a.seed, "updates": a.updates, "ckpt_every": a.ckpt_every, "lr": 1e-3, "batch": 4,
-               "objective": tw.R3_NAME, "model": "build_stem_model (12ch back-projection STEM)", "precision": "float32",
+               "objective": tw.R3_NAME, "model": "build_stem_model (12ch back-projection STEM)", "hparams": model.hparams, "precision": "float32",
                "device": torch.cuda.get_device_name(0), "torch": torch.__version__, "native_manifest_sha256": msha,
                "native_train": 512, "val": data["val"]["ids"], "wc": wc_info, "code_commit": commit, "git_dirty": dirty,
                "pilot_sha256": sha(Path(__file__).read_bytes()),
@@ -268,6 +268,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--updates", type=int, default=4000)
     ap.add_argument("--ckpt-every", type=int, default=500)
+    ap.add_argument("--base-channels", type=int, default=16)
+    ap.add_argument("--depth", type=int, default=3)
     ap.add_argument("--out", required=True)
     ap.add_argument("ckpts", nargs="*")
     a = ap.parse_intermixed_args()
