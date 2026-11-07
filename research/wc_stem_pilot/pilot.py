@@ -155,7 +155,7 @@ def train(a):
     gen, gen_w = torch.Generator().manual_seed(a.seed), torch.Generator().manual_seed(10000 + a.seed)
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     dirty = bool(subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
-    run_cfg = {"arm": a.arm, "seed": a.seed, "updates": a.updates, "ckpt_every": a.ckpt_every, "lr": 1e-3, "batch": 4,
+    run_cfg = {"arm": a.arm, "seed": a.seed, "updates": a.updates, "ckpt_every": a.ckpt_every, "lr": 1e-3, "lr_schedule": a.lr_schedule, "batch": 4,
                "objective": tw.R3_NAME, "model": "build_stem_model (12ch back-projection STEM)", "hparams": model.hparams, "precision": "float32",
                "device": torch.cuda.get_device_name(0), "torch": torch.__version__, "native_manifest_sha256": msha,
                "native_train": 512, "val": data["val"]["ids"], "wc": wc_info, "code_commit": commit, "git_dirty": dirty,
@@ -171,6 +171,9 @@ def train(a):
     t0 = time.perf_counter()
     model.train()
     for step in range(1, a.updates + 1):
+        if a.lr_schedule == "cosine":   # 1e-3 -> 1e-5 over the run, set BEFORE the update of this step
+            for g in opt.param_groups:
+                g["lr"] = 1e-5 + 0.5 * (1e-3 - 1e-5) * (1 + math.cos(math.pi * (step - 1) / a.updates))
         if a.arm == "native":
             idx = torch.randperm(512, generator=gen)[:4]
             batch = train_t[idx.to(dev)]
@@ -270,6 +273,7 @@ def main():
     ap.add_argument("--ckpt-every", type=int, default=500)
     ap.add_argument("--base-channels", type=int, default=16)
     ap.add_argument("--depth", type=int, default=3)
+    ap.add_argument("--lr-schedule", choices=("const", "cosine"), default="const")
     ap.add_argument("--out", required=True)
     ap.add_argument("ckpts", nargs="*")
     a = ap.parse_intermixed_args()
