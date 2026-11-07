@@ -1,16 +1,5 @@
-test_amplitude_not_sqrt (back_projection_stem.test_stem.TestFeatures.test_amplitude_not_sqrt) ... ok
-test_shape_order_and_values (back_projection_stem.test_stem.TestFeatures.test_shape_order_and_values) ... ok
-test_zero_and_constant_planes_are_finite (back_projection_stem.test_stem.TestFeatures.test_zero_and_constant_planes_are_finite) ... ok
-test_dtype_device_and_rejects_real (back_projection_stem.test_stem.TestInverseFresnel.test_dtype_device_and_rejects_real) ... ok
-test_independent_direct_sum_reference (back_projection_stem.test_stem.TestInverseFresnel.test_independent_direct_sum_reference) ... ok
-test_roundtrip_128_official_planes (back_projection_stem.test_stem.TestInverseFresnel.test_roundtrip_128_official_planes) ... ok
-test_roundtrip_small_odd_even_anisotropic (back_projection_stem.test_stem.TestInverseFresnel.test_roundtrip_small_odd_even_anisotropic) ... ok
-test_body_matches_parent (back_projection_stem.test_stem.TestModel.test_body_matches_parent) ... ok
-test_finite_r3_loss_and_gradients (back_projection_stem.test_stem.TestModel.test_finite_r3_loss_and_gradients) ... ok
-test_production_checkpoint_still_loads (back_projection_stem.test_stem.TestModel.test_production_checkpoint_still_loads) ... ok
-test_shapes_range_and_hparams (back_projection_stem.test_stem.TestModel.test_shapes_range_and_hparams) ... ok
-
+...............
 ----------------------------------------------------------------------
-Ran 11 tests in 1.553s
+Ran 15 tests in 1.870s
 
 OK
