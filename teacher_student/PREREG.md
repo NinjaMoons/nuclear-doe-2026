@@ -47,3 +47,13 @@ before 04:00 MSK research cutoff; otherwise HOLD. Nothing runs before review OK 
   the only judge.
 - **Ghosting:** teacher reconstructions keep similar inter-z; no cure for B ghosting is expected.
 - **Speckle:** Adam teachers can add speckle. Watch the speckle and brightness metrics.
+
+## Addendum before start (2026-11-07 ~21:03 UTC = 00:03 MSK), after R16_SCIENTIFIC_GO #49/6712551688
+- Review fixes in code @ e718cfc7: TRAIN-only content-addressed label cache (labels = display of the uint8-codec teacher
+  phase), alignment + permutation tests 4/4, speckle readout (`speckle.py`), student wrapper `train_r16.py`.
+- Student init = v2 `19b05dad…083f`; teacher init = v2 phase; teacher 50 steps; labels for ALL 512 TRAIN quartets.
+- Both arms train on exactly the labelled TRAIN set (here: all 512), same seed 0 batch generator, 1000 updates, eval every 100
+  (step 100 = health gate: finite + VAL export works, else STOP).
+- Added NO_GO (#49 item 3): treatment hot-px (PNG>=0.9) or peak-pixel fraction > 1.5x control, or visibly grainier with dP < +0.01.
+- Readouts additionally: speckle.py metrics, paired bootstrap over 16 quartets, best_step==0 fraction of the teacher.
+- Host: Matvey laptop CPU only (no GPU). EXPERIMENT_ID=R16. Cap: labels 45 min, each arm 30 min; whole chain must end before 03:30 MSK.
