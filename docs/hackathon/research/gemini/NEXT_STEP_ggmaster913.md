@@ -19,7 +19,7 @@
 - **R19-TPHASE-S0 independent acceptance: INCONCLUSIVE(+), NOT_PROMOTED.**
   - ΔP +.0045 [+.0013, +.0078]; B own 23→25.
   - Mac replay matches GPU to 2e-5.
-  - **R19-TPHASE-S1: NO_GO** (pre-reg requires SIGNAL; +.010 unreachable; noise floor .002–.004).
+  - R19-TPHASE-S1: my NO_GO withdrawn (#51 6714461127); READY/GO per 6714389928 (replication ΔP ≥ +.003, ΔB ≥ +.005).
   - #49 6714438088, #51 6714438627. Report: accept_r19/ACCEPT_R19_S0.md @ 01587a6.
 - **GPU:** no new READY tasks from me. V2 remains the baseline.
 - **Next:** cron checks; acceptance of any other candidate (05:15–06:00); the science section of the defense.
