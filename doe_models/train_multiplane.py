@@ -429,13 +429,35 @@ def _safe_relative(base: Path, rel) -> Path:
     return full
 
 
-def load_manifest(path, *, load_quartet) -> dict:
-    """Strictly validate a `doe_training_manifest_v1` and load each split with `load_quartet`.
+class _SplitData(dict):
+    """Split metadata; `targets` exists only if the split was materialized (else an explicit KeyError)."""
 
-    Every PNG must match its SHA256; keys `corpus_id:local_sample_id` are unique; one origin_id never
-    appears in two splits; train/val/test are all non-empty; paths stay inside the manifest directory.
+    def __missing__(self, key):
+        if key == "targets":
+            raise KeyError(f"targets of split {self.get('name')!r} were not materialized "
+                           f"(load_manifest(..., materialize=...) did not include it)")
+        raise KeyError(key)
+
+
+def _check_materialize(materialize) -> tuple:
+    if isinstance(materialize, str) or not isinstance(materialize, (tuple, list)) or not materialize:
+        raise ValueError(f"materialize must be a non-empty tuple/list of splits from {SPLITS}")
+    if any(m not in SPLITS for m in materialize) or len(set(materialize)) != len(materialize):
+        raise ValueError(f"materialize must name distinct splits from {SPLITS}, got {tuple(materialize)!r}")
+    return tuple(s for s in SPLITS if s in materialize)
+
+
+def load_manifest(path, *, load_quartet, materialize=SPLITS) -> dict:
+    """Strictly validate a `doe_training_manifest_v1`; decode only the `materialize` splits.
+
+    Validation always covers ALL splits before any decoding: every PNG must match its SHA256; keys
+    `corpus_id:local_sample_id` are unique; one origin_id never appears in two splits; train/val/test
+    are all non-empty; paths stay inside the manifest directory. Non-materialized splits keep ids,
+    origins, kinds and paths, but their `targets` raise KeyError. Hash validation still reads the bytes
+    of every file; only the selected splits are decoded into tensors. Default: all splits.
     """
     import json
+    materialize = _check_materialize(materialize)
     path = Path(path)
     raw = path.read_bytes()
     manifest = json.loads(raw.decode("utf-8"))
@@ -481,11 +503,14 @@ def load_manifest(path, *, load_quartet) -> dict:
             raise ValueError(f"manifest split {split!r} is empty")
     splits = {}
     for split, items in rows.items():
-        targets = torch.cat([load_quartet(files) for _, _, _, files in items])
-        splits[split] = {"targets": targets, "ids": [k for k, _, _, _ in items],
-                         "origins": [o for _, o, _, _ in items], "kinds": [kd for _, _, kd, _ in items],
-                         "paths": [files for _, _, _, files in items]}
-    return {"splits": splits, "manifest_sha256": hashlib.sha256(raw).hexdigest(), "manifest_path": str(path.resolve()),
+        part = _SplitData(name=split, ids=[k for k, _, _, _ in items], origins=[o for _, o, _, _ in items],
+                          kinds=[kd for _, _, kd, _ in items], paths=[files for _, _, _, files in items],
+                          materialized=split in materialize)
+        if part["materialized"]:
+            part["targets"] = torch.cat([load_quartet(files) for _, _, _, files in items])
+        splits[split] = part
+    return {"splits": splits, "materialized": list(materialize),
+            "manifest_sha256": hashlib.sha256(raw).hexdigest(), "manifest_path": str(path.resolve()),
             "n_samples": len(samples), "synthetic": bool(manifest.get("synthetic", True)),
             "corpus_ids": sorted({k.split(":", 1)[0] for k in keys})}
 
@@ -641,7 +666,9 @@ def main(argv=None, components: DriverComponents | None = None) -> int:
     config = CaseConfigV1()
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=False)                       # never overwrite an earlier run
-    data = load_manifest(args.manifest, load_quartet=components.load_quartet)
+    # decode only what this mode uses: training/smoke -> train+val; evaluation -> the requested splits
+    selected = tuple(args.eval_splits) if args.evaluate_checkpoint is not None else ("train", "val")
+    data = load_manifest(args.manifest, load_quartet=components.load_quartet, materialize=selected)
     env = _environment(device)
     _write_json(out / "environment.json", env)
 
@@ -659,7 +686,8 @@ def main(argv=None, components: DriverComponents | None = None) -> int:
         "precision": "float32", "amp": False, "selection": "best validation objective (same as training objective)",
         "checkpoints": "weights only, NOT resumable (no optimizer/RNG state)", "smoke_steps": args.smoke_steps,
         "manifest_sha256": data["manifest_sha256"], "manifest_path": data["manifest_path"],
-        "split_sizes": {k: len(v["ids"]) for k, v in sp.items()}, "corpus_ids": data["corpus_ids"],
+        "split_sizes": {k: len(v["ids"]) for k, v in sp.items()}, "materialized_splits": data["materialized"],
+        "corpus_ids": data["corpus_ids"],
         "synthetic": data["synthetic"], "contract_version": CONTRACT_VERSION_V1, **_code_provenance()}
     _write_json(out / "run_config.json", run_config)
 
