@@ -1,0 +1,170 @@
+{
+ "torch": "2.9.0+cpu",
+ "cuda_available": false,
+ "threads": 8,
+ "platform": "Windows-11-10.0.26300-SP0",
+ "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+ "vram": "PENDING (no CUDA device on this machine)",
+ "roundtrip_rel_l2": {
+  "4x6/official_z1/complex64": {
+   "inv_fwd": 1.3291325728914671e-07,
+   "fwd_inv": 1.3534227605305205e-07
+  },
+  "4x6/official_z1/complex128": {
+   "inv_fwd": 3.6271456957177563e-16,
+   "fwd_inv": 4.2876450047167193e-16
+  },
+  "4x6/official_z2/complex64": {
+   "inv_fwd": 1.384768921752766e-07,
+   "fwd_inv": 1.3124721931490058e-07
+  },
+  "4x6/official_z2/complex128": {
+   "inv_fwd": 3.534038895382416e-16,
+   "fwd_inv": 3.435031112743966e-16
+  },
+  "4x6/official_z3/complex64": {
+   "inv_fwd": 1.233732263017373e-07,
+   "fwd_inv": 1.4139070003693632e-07
+  },
+  "4x6/official_z3/complex128": {
+   "inv_fwd": 2.9274382656871716e-16,
+   "fwd_inv": 3.0951542379782034e-16
+  },
+  "4x6/official_z4/complex64": {
+   "inv_fwd": 1.8073239971272415e-07,
+   "fwd_inv": 1.5967516731052456e-07
+  },
+  "4x6/official_z4/complex128": {
+   "inv_fwd": 2.76789016777729e-16,
+   "fwd_inv": 3.2632777183796523e-16
+  },
+  "4x6/aniso_10x13um_z3mm/complex64": {
+   "inv_fwd": 1.3834279855018394e-07,
+   "fwd_inv": 1.2905425705866946e-07
+  },
+  "4x6/aniso_10x13um_z3mm/complex128": {
+   "inv_fwd": 3.846465119966419e-16,
+   "fwd_inv": 3.9655228352695844e-16
+  },
+  "5x7/official_z1/complex64": {
+   "inv_fwd": 1.6309053307850263e-07,
+   "fwd_inv": 1.5114380857994547e-07
+  },
+  "5x7/official_z1/complex128": {
+   "inv_fwd": 2.8454519051056206e-16,
+   "fwd_inv": 3.008296294716441e-16
+  },
+  "5x7/official_z2/complex64": {
+   "inv_fwd": 1.5501041161769535e-07,
+   "fwd_inv": 1.8109074062522268e-07
+  },
+  "5x7/official_z2/complex128": {
+   "inv_fwd": 2.9385253484383583e-16,
+   "fwd_inv": 2.967475164556533e-16
+  },
+  "5x7/official_z3/complex64": {
+   "inv_fwd": 1.7141253749741736e-07,
+   "fwd_inv": 1.515030874088552e-07
+  },
+  "5x7/official_z3/complex128": {
+   "inv_fwd": 3.6548218547642927e-16,
+   "fwd_inv": 2.881032340473102e-16
+  },
+  "5x7/official_z4/complex64": {
+   "inv_fwd": 1.5944743836371345e-07,
+   "fwd_inv": 1.5773373718275252e-07
+  },
+  "5x7/official_z4/complex128": {
+   "inv_fwd": 2.753535228115642e-16,
+   "fwd_inv": 3.0490574671782497e-16
+  },
+  "5x7/aniso_10x13um_z3mm/complex64": {
+   "inv_fwd": 1.5710830325588176e-07,
+   "fwd_inv": 1.4864910724554647e-07
+  },
+  "5x7/aniso_10x13um_z3mm/complex128": {
+   "inv_fwd": 3.0289643343666504e-16,
+   "fwd_inv": 3.3286312316901516e-16
+  },
+  "128x128/official_z1/complex64": {
+   "inv_fwd": 2.0973536152268935e-07,
+   "fwd_inv": 2.0786761467661563e-07
+  },
+  "128x128/official_z1/complex128": {
+   "inv_fwd": 3.928087264141409e-16,
+   "fwd_inv": 3.9180059442885e-16
+  },
+  "128x128/official_z2/complex64": {
+   "inv_fwd": 2.0867238958999224e-07,
+   "fwd_inv": 2.0812800016756228e-07
+  },
+  "128x128/official_z2/complex128": {
+   "inv_fwd": 3.9240869303114664e-16,
+   "fwd_inv": 3.924948675463999e-16
+  },
+  "128x128/official_z3/complex64": {
+   "inv_fwd": 2.085626960024456e-07,
+   "fwd_inv": 2.0900586150673917e-07
+  },
+  "128x128/official_z3/complex128": {
+   "inv_fwd": 3.925232782665483e-16,
+   "fwd_inv": 3.925320712335964e-16
+  },
+  "128x128/official_z4/complex64": {
+   "inv_fwd": 2.1076654377338855e-07,
+   "fwd_inv": 2.0936147393513238e-07
+  },
+  "128x128/official_z4/complex128": {
+   "inv_fwd": 3.9582764786999814e-16,
+   "fwd_inv": 3.930203536963999e-16
+  },
+  "128x128/aniso_10x13um_z3mm/complex64": {
+   "inv_fwd": 2.0770752939824888e-07,
+   "fwd_inv": 2.0904008124489337e-07
+  },
+  "128x128/aniso_10x13um_z3mm/complex128": {
+   "inv_fwd": 3.9386564379293427e-16,
+   "fwd_inv": 3.9530270585190454e-16
+  }
+ },
+ "roundtrip_max": {
+  "complex64": 2.1076654377338855e-07,
+  "complex128": 4.2876450047167193e-16
+ },
+ "step_cost": {
+  "batch": 4,
+  "shape": [
+   128,
+   128
+  ],
+  "precision": "float32",
+  "loss": "R3 beta0.3 (r3_loss)",
+  "scope": "zero_grad + model forward + 4-plane Fresnel + loss + backward + Adam step",
+  "unet4": {
+   "mean_s": 0.23542990312500933,
+   "round_means_s": [
+    0.29061504999936005,
+    0.2055500625010609,
+    0.2348475499993583,
+    0.21070695000025808
+   ],
+   "min_s": 0.18690440000136732,
+   "n": 32,
+   "params": 451329
+  },
+  "stem12": {
+   "mean_s": 0.24917353124999408,
+   "round_means_s": [
+    0.28042918749906676,
+    0.22179065000091214,
+    0.22857288749946747,
+    0.26590140000053
+   ],
+   "min_s": 0.20261480000044685,
+   "n": 32,
+   "params": 452481
+  },
+  "stem12_over_unet4": 1.0583767310038228,
+  "feature_build_s_per_batch": 0.03456216000013228
+ }
+}
