@@ -112,3 +112,29 @@ Pillow 13.0.0. CUDA complex FFT OK. Smoke (production driver, `--smoke-steps 10`
   `--device cuda`, venv-cuda. 10 runs. Primary: VAL last.pt (step 1000), paired by seed.
 - Confirm only if mean ΔP > 0.01 with ≥ 4/5 seeds positive and mean ΔS > −0.01; otherwise "not confirmed".
 - Cap: ~2 min per run, 30 min total.
+
+### E4 — STOPPED (2026-11-07 12:15 UTC, operator leaving; laptop closed). PARTIAL, NOT a verdict.
+Completed (exit 0, GPU, peak 679 202 304 B each, ~45–60 s train): λ=0.1 s0, s1, s2; λ=0.03 s0, s1.
+Killed mid-run: `e4-lam003-u1000-s2-gpu` → renamed `*.INCOMPLETE-killed` (no train_log/eval; do not use).
+Not started: λ=0.03 s2 (rerun into a NEW dir), both arms s3, s4.
+
+| VAL last.pt step 1000 (GPU) | λ=0.1 | λ=0.03 | ΔP / ΔS |
+|---|---|---|---|
+| s0 Pearson ALL / SSIM ALL | 0.4213 / 0.3215 | 0.4294 / 0.3162 | +0.008 / −0.005 |
+| s1 Pearson ALL / SSIM ALL | 0.4325 / 0.3368 | 0.4386 / 0.3325 | +0.006 / −0.004 |
+| s2 Pearson ALL / SSIM ALL | 0.4155 / 0.3282 | — | — |
+
+GPU control s0 vs run1000 best.pt (4070 Ti): SSIM 0.3215 = 0.3215, Pearson 0.4213 vs 0.4180.
+Interim reading: ΔP > 0 in all 4 seed pairs so far (CPU s0/s1, GPU s0/s1) but small (+0.006…+0.018);
+on GPU SSIM slightly down. Pre-registered E4 rule needs 5 seeds — **not confirmed / not rejected yet**.
+
+### RESUME HERE
+1. Plug in AC; G-Helper GPU mode Standard; `nvidia-smi` shows RTX 4060 Laptop and no other GPU job.
+2. From `C:\nuclear-runs\research-mvr\wt-49b9604` (branch codex/6-mvr-research, clean tree), with
+   `PYTHONPATH=C:\nuclear-runs\research-mvr\wt-49b9604`, run with `C:\nuclear-runs\venv-cuda\Scripts\python.exe`:
+   `research/mvr/research_lambda_wrapper.py <λ> --manifest C:/nuclear-runs/research-mvr/corpus/manifest_expanded.json
+   --out-dir C:/nuclear-runs/research-mvr/runs/e4-lam<λ>-u1000-s<S>-gpu[-r2] --device cuda --updates 1000
+   --eval-every 100 --batch-size 4 --lr 0.001 --seed <S> --base-channels 16 --depth 3`
+   for (0.03, s2 → out-dir suffix `-r2`), (0.1, s3), (0.03, s3), (0.1, s4), (0.03, s4).
+3. `python -I research/mvr/val_compare.py <out.json> <all 10 complete e4 dirs>`; apply the E4 rule; report in #6.
+4. Research stop time 19:00 MSK; P0 delivery has priority.
