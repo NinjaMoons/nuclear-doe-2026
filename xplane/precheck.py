@@ -31,23 +31,28 @@ def evaluate(phi, targets, od):
     return dict(P=float(np.mean([C[k][k] for k in range(4)])), S=S, own=sum(int(np.argmax(C[k]) == k) for k in range(4)),
                 iz=iz(np.ones_like(r)), iz_low=iz(r <= .15), iz_mid=iz((r > .15) & (r <= .5)),
                 bright=float(np.mean([x.mean() for x in R])), hot=float(np.mean([(x >= 0.999).mean() for x in R])))
-out = Path(sys.argv[1]); res = {}
-for arg in sys.argv[2:]:
-    label, d = arg.split("=", 1); d = Path(d)
-    targets = [d / "targets" / f"target_{k:02d}.png" for k in range(1, 5)]; T = load_png_quartet(targets)
-    phi0 = load_doe_png(d / "DOE.png", dtype=torch.float64).float()
-    with torch.no_grad():
-        A0 = multiplane_amplitudes(phi0, CFG, propagate_fresnel); r30 = float(r3_loss(A0, T)); lc0 = float(xplane_contrast(A0, T))
-    lam = float(__import__("os").environ.get("FRAC", 0.25)) * r30 / max(lc0, 1e-8); res[label] = {"R3_init": r30, "Lcon_init": lc0, "lam": lam}
-    res[label]["v2"] = evaluate(((phi0 + math.pi) % (2 * math.pi) - math.pi)[0, 0].double().numpy(), targets, out / f"{label}_v2")
-    for arm, w in (("control", 0.0), ("r20", lam)):
-        torch.manual_seed(0); phase = phi0.clone().requires_grad_(True); opt = torch.optim.Adam([phase], lr=LR); best = (math.inf, phi0.clone(), None)
-        for step in range(STEPS + 1):
-            A = multiplane_amplitudes(phase, CFG, propagate_fresnel); l3 = r3_loss(A, T); lc = xplane_contrast(A, T); loss = l3 + w * lc
-            if float(loss) < best[0]: best = (float(loss), phase.detach().clone(), (float(l3), float(lc)))
-            if step == STEPS: break
-            opt.zero_grad(set_to_none=True); loss.backward(); opt.step()
-        ph = ((best[1] + math.pi) % (2 * math.pi) - math.pi)[0, 0].double().numpy()
-        m = evaluate(ph, targets, out / f"{label}_{arm}"); m.update(R3=best[2][0], Lcon=best[2][1]); res[label][arm] = m
-    print(label, json.dumps({k: (v if not isinstance(v, dict) else {a: round(b, 4) for a, b in v.items()}) for k, v in res[label].items()}), flush=True)
-json.dump(res, open(out / "r20_precheck.json", "w"), indent=1)
+def main():
+    out = Path(sys.argv[1]); res = {}
+    for arg in sys.argv[2:]:
+        label, d = arg.split("=", 1); d = Path(d)
+        targets = [d / "targets" / f"target_{k:02d}.png" for k in range(1, 5)]; T = load_png_quartet(targets)
+        phi0 = load_doe_png(d / "DOE.png", dtype=torch.float64).float()
+        with torch.no_grad():
+            A0 = multiplane_amplitudes(phi0, CFG, propagate_fresnel); r30 = float(r3_loss(A0, T)); lc0 = float(xplane_contrast(A0, T))
+        lam = float(__import__("os").environ.get("FRAC", 0.25)) * r30 / max(lc0, 1e-8); res[label] = {"R3_init": r30, "Lcon_init": lc0, "lam": lam}
+        res[label]["v2"] = evaluate(((phi0 + math.pi) % (2 * math.pi) - math.pi)[0, 0].double().numpy(), targets, out / f"{label}_v2")
+        for arm, w in (("control", 0.0), ("r20", lam)):
+            torch.manual_seed(0); phase = phi0.clone().requires_grad_(True); opt = torch.optim.Adam([phase], lr=LR); best = (math.inf, phi0.clone(), None)
+            for step in range(STEPS + 1):
+                A = multiplane_amplitudes(phase, CFG, propagate_fresnel); l3 = r3_loss(A, T); lc = xplane_contrast(A, T); loss = l3 + w * lc
+                if float(loss) < best[0]: best = (float(loss), phase.detach().clone(), (float(l3), float(lc)))
+                if step == STEPS: break
+                opt.zero_grad(set_to_none=True); loss.backward(); opt.step()
+            ph = ((best[1] + math.pi) % (2 * math.pi) - math.pi)[0, 0].double().numpy()
+            m = evaluate(ph, targets, out / f"{label}_{arm}"); m.update(R3=best[2][0], Lcon=best[2][1]); res[label][arm] = m
+        print(label, json.dumps({k: (v if not isinstance(v, dict) else {a: round(b, 4) for a, b in v.items()}) for k, v in res[label].items()}), flush=True)
+    json.dump(res, open(out / "r20_precheck.json", "w"), indent=1)
+
+
+if __name__ == "__main__":
+    main()
