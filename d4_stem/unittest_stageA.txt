@@ -1,0 +1,16 @@
+test_c64_exact_forward_inverse_features (d4_stem.test_d4.TestD4.test_c64_exact_forward_inverse_features) ... ok
+test_group (d4_stem.test_d4.TestD4.test_group) ... ok
+test_pixel_centre_flip_is_not_exact (d4_stem.test_d4.TestD4.test_pixel_centre_flip_is_not_exact) ... FAIL
+
+======================================================================
+FAIL: test_pixel_centre_flip_is_not_exact (d4_stem.test_d4.TestD4.test_pixel_centre_flip_is_not_exact)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/guccilord228/Desktop/r14-d4/d4_stem/test_d4.py", line 40, in test_pixel_centre_flip_is_not_exact
+    self.assertGreater(rel(propagate_fresnel(apply(("fx",), U, "c63.5"), g).field.abs(), apply(("fx",), FU, "c63.5").abs()), 1e-2)
+AssertionError: 0.0021283164599382983 not greater than 0.01
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.150s
+
+FAILED (failures=1)

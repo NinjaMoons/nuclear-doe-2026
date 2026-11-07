@@ -1,0 +1,98 @@
+{
+ "closure": {
+  "c64": {
+   "closed": true,
+   "inverses": true,
+   "8_distinct": true
+  },
+  "c63.5": {
+   "closed": true,
+   "inverses": true,
+   "8_distinct": true
+  }
+ },
+ "forward": {
+  "c64": {
+   "complex_max_rel": {
+    "random_phase": 3.693930805563798e-16,
+    "chirp_structured": 3.677238927634238e-16,
+    "constant_phase": 3.68668668766506e-16,
+    "impulses": 2.6942513030823646e-16,
+    "random_complex": 3.6929388042320876e-16
+   },
+   "amplitude_max_rel": {
+    "random_phase": 2.840783819840238e-16,
+    "chirp_structured": 2.731618612647093e-16,
+    "constant_phase": 2.772129108568407e-16,
+    "impulses": 2.25806052081486e-16,
+    "random_complex": 2.829744687196141e-16
+   }
+  },
+  "c63.5": {
+   "complex_max_rel": {
+    "random_phase": 0.5008205949280164,
+    "chirp_structured": 0.1678778726725841,
+    "constant_phase": 0.09967070058258791,
+    "impulses": 0.44188315946662116,
+    "random_complex": 0.5017515574583055
+   },
+   "amplitude_max_rel": {
+    "random_phase": 0.22938659193407157,
+    "chirp_structured": 0.10759242291890572,
+    "constant_phase": 0.055567686913275696,
+    "impulses": 0.10945408631311712,
+    "random_complex": 0.22998476433910012
+   }
+  }
+ },
+ "inverse": {
+  "c64": {
+   "complex_max_rel": {
+    "random_phase": 3.710797062025334e-16,
+    "chirp_structured": 3.7623186613783084e-16,
+    "constant_phase": 3.681282194651041e-16,
+    "impulses": 3.191524057025216e-16,
+    "random_complex": 3.706051976279198e-16
+   }
+  },
+  "c63.5": {
+   "complex_max_rel": {
+    "random_phase": 0.5005279943182954,
+    "chirp_structured": 0.3021847961806676,
+    "constant_phase": 0.38768795540614526,
+    "impulses": 0.42122778461252725,
+    "random_complex": 0.5017457349393607
+   }
+  }
+ },
+ "features": {
+  "c64": {
+   "max_rel_over_elements": 3.2577445080840533e-16,
+   "per_element": {
+    "('fx',)": 2.200774497032661e-16,
+    "('fy',)": 2.8088935884556836e-16,
+    "('fx', 'fy')": 3.0785532752522244e-16,
+    "('t',)": 2.886840737768869e-16,
+    "('t', 'fx')": 3.0780065956621167e-16,
+    "('t', 'fy')": 3.048241164952581e-16,
+    "('t', 'fx', 'fy')": 3.2577445080840533e-16
+   }
+  },
+  "c63.5": {
+   "max_rel_over_elements": 0.21801093525582224,
+   "per_element": {
+    "('fx',)": 0.1553085568407351,
+    "('fy',)": 0.15537225477455388,
+    "('fx', 'fy')": 0.21801093525582224,
+    "('t',)": 2.886840737768869e-16,
+    "('t', 'fx')": 0.15530855684073508,
+    "('t', 'fy')": 0.15537225477455388,
+    "('t', 'fx', 'fy')": 0.21801093525582224
+   }
+  }
+ },
+ "codec": {
+  "encode_commutes_exactly_c64": true,
+  "png_max_code_diff_c64": 0
+ }
+}
