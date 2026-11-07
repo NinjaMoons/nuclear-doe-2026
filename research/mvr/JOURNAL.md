@@ -97,3 +97,18 @@ Overall picture: VAL Pearson is maximised around λ≈0.03–0.1 and falls at λ
 Autonomous budget (1 experiment + 2 follow-ups, #7/6705970325) is used: E1, E2, E3. NEXT (needs coordinator
 GO, not started): confirm λ=0.03 vs 0.1 with ≥3 more seeds on the same device (GPU, once the driver is installed),
 VAL only. Production best.pt stays λ=0.1; nothing here changes the contest model.
+
+## RTX preflight (2026-11-07 12:02 UTC) — PASS
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU (not 4050), 8188 MiB, driver 621.14, idle 48 °C, on AC power, no other
+GPU process. Separate venv `C:\nuclear-runs\venv-cuda`: Python 3.11.9, torch 2.9.0+cu128 (CUDA 12.8), numpy 2.3.4,
+Pillow 13.0.0. CUDA complex FFT OK. Smoke (production driver, `--smoke-steps 10`, TRAIN only, 49b9604):
+0.0427 s/step (CPU 0.200), peak 679 202 304 B — identical to run1000 on 4070 Ti; step-1 objective
+0.3070728904979042 bit-identical to run1000.
+
+## E4 — confirm the λ=0.03 candidate on GPU (pre-registered, committed before running)
+- Why: E3 margin (ΔP +0.012) ≈ control seed spread (0.011). Replication with more seeds on one device; same
+  hypothesis, not a new one (user asked to use the GPU now).
+- Arms λ=0.1 (control) and λ=0.03; seeds 0,1,2,3,4; `--updates 1000 --eval-every 100`, rest as E2/E3;
+  `--device cuda`, venv-cuda. 10 runs. Primary: VAL last.pt (step 1000), paired by seed.
+- Confirm only if mean ΔP > 0.01 with ≥ 4/5 seeds positive and mean ΔS > −0.01; otherwise "not confirmed".
+- Cap: ~2 min per run, 30 min total.
