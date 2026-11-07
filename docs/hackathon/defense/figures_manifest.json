@@ -1,0 +1,540 @@
+{
+ "purpose": "defense figures: official raw reconstructions, VAL only, no image processing",
+ "val_manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+ "pipeline": "DOE.png uint8 -> reload -> 4 single-FFT Fresnel |U| -> per-plane max -> round-half-up uint8 PNG -> reload -> Pearson / global SSIM",
+ "z_m": [
+  0.0241,
+  0.0253,
+  0.0265,
+  0.0277
+ ],
+ "quartets": [
+  {
+   "sample_key": "A64:060",
+   "role": "A median-like (#47)",
+   "val_dir": "005",
+   "models": {
+    "4ch_fallback": {
+     "checkpoint_sha256": "ba699b7464ca448dd367399a5509914468c23c0d1990bb3771692f4ad4fb16a2",
+     "source": "asset 720489303 (model/best.pt)",
+     "doe_png_sha256": "6ac000c51b8851b95d53318aec141d2198f9b65a6ba48a67ec09eca86efb2865",
+     "recon_png_sha256": [
+      "bea189c5fda1d67d269da3aea20f7a077154e2c382da95e2d82f599a5e962437",
+      "51f126219da1165ae7af74da6013a039586bc026f8587e513d7ff3ad309260f1",
+      "effa72acbf3dcebb35f659399af66b1d3d725244daf8ccbbd233334287125ea7",
+      "5fbf6fa5f0f2ae7bb733a5fa3cedb28981114d34c81c04800f60c7020c63895c"
+     ],
+     "pearson": [
+      0.7743,
+      0.7533,
+      0.7222,
+      0.7094
+     ],
+     "ssim": [
+      0.6138,
+      0.6627,
+      0.6612,
+      0.6878
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.7743,
+       0.7116,
+       0.5343,
+       0.3731
+      ],
+      [
+       0.6664,
+       0.7533,
+       0.7025,
+       0.5558
+      ],
+      [
+       0.4656,
+       0.6303,
+       0.7222,
+       0.6973
+      ],
+      [
+       0.298,
+       0.4593,
+       0.6212,
+       0.7094
+      ]
+     ],
+     "own_argmax": 4
+    },
+    "STEM_v1_s0_step900": {
+     "checkpoint_sha256": "569e170065cca160eb6ce64a0707d81e5e016857b0962498c156cba80f6d3b7d",
+     "source": "asset 721351745",
+     "doe_png_sha256": "f7bda2dd7e0a44c23852580510c51bfcaa96371bcd26e3aeeb7f12ef22e305cd",
+     "recon_png_sha256": [
+      "3fccb70e6385dad59cc9546c28ac79d6156bf09fbefe53e10c1dc9e3521be925",
+      "a17b36d2117738d63f121b8e0d752169da1be0ac787cc762327b4970677470f3",
+      "16b53341568c32587cd657327a9ad8d4f3b2e66a978cfe6dbb78ecd7566184d7",
+      "dde8e8b3fd762f7521feff86629467c24dd3f045882ab98cd19d6f6043921ea5"
+     ],
+     "pearson": [
+      0.7652,
+      0.7951,
+      0.7937,
+      0.7657
+     ],
+     "ssim": [
+      0.6515,
+      0.7268,
+      0.7295,
+      0.7519
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.7652,
+       0.624,
+       0.4336,
+       0.3103
+      ],
+      [
+       0.6045,
+       0.7951,
+       0.6455,
+       0.4463
+      ],
+      [
+       0.4179,
+       0.623,
+       0.7937,
+       0.6544
+      ],
+      [
+       0.3075,
+       0.4378,
+       0.6418,
+       0.7657
+      ]
+     ],
+     "own_argmax": 4
+    },
+    "STEM_v2_native12k_s0": {
+     "checkpoint_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+     "source": "asset 721714285",
+     "doe_png_sha256": "b951d2675b86611de2d5adcd8392a35e6b9074b6c7c122e1167b95039d7673bf",
+     "recon_png_sha256": [
+      "a6eed60ea6fc71d1fc477861ad4a7cdd3efc5e064dc84bcfea58a4183b281a65",
+      "6e9b85325bdee32e474c63655e881bb05508a3a70a2bd0476e50e7429176fcfb",
+      "af3e89fa921a7a5514781d33605013cbeaf78898bce9649ec342661e12bc0eac",
+      "4834ad52a1c2dc3a12ed47926fdf2092c3686a2dba63d635756a93641e62b9cc"
+     ],
+     "pearson": [
+      0.8202,
+      0.8471,
+      0.8378,
+      0.8163
+     ],
+     "ssim": [
+      0.7346,
+      0.8183,
+      0.8089,
+      0.7973
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.8202,
+       0.6677,
+       0.4563,
+       0.3189
+      ],
+      [
+       0.6474,
+       0.8471,
+       0.6877,
+       0.4681
+      ],
+      [
+       0.4457,
+       0.6611,
+       0.8378,
+       0.6976
+      ],
+      [
+       0.3209,
+       0.453,
+       0.6745,
+       0.8163
+      ]
+     ],
+     "own_argmax": 4
+    }
+   },
+   "output_pitch_m": [
+    1.00165625e-05,
+    1.05153125e-05,
+    1.1014062500000001e-05,
+    1.15128125e-05
+   ],
+   "target_png_sha256": [
+    "419fc843b3d0f09e43b088c9bd6d6b48b0ac5f5b62ead93bccc998a1a3fe6bcf",
+    "f80ddde6f77f407885ffe20a61f427ca82ee1f8d6d6c32fa1343d020d971603a",
+    "e1f7f61721a7cda460b60fd558b578ff81b0909263dda6542eab61d1e2d57044",
+    "e22d854815cc2ff6bacd85cea0cdb9c02c26c4a81deb0cb77c823e464f704bbd"
+   ]
+  },
+  {
+   "sample_key": "B64:012",
+   "role": "B median (#47)",
+   "val_dir": "009",
+   "models": {
+    "4ch_fallback": {
+     "checkpoint_sha256": "ba699b7464ca448dd367399a5509914468c23c0d1990bb3771692f4ad4fb16a2",
+     "source": "asset 720489303 (model/best.pt)",
+     "doe_png_sha256": "2916afddc0b4a02ac60febb666cf15d27a7da220f9fcb4c74748a0e6c4a13f85",
+     "recon_png_sha256": [
+      "f4bbec3976ede4fc19f2536d8e364ebb7669d5d88e0f8515a39180936344d7f2",
+      "c57d99f88ba18d993cd3427ebe37630022260f47f1b0240fb36ae815ca8cde94",
+      "87c3d55dc9b003597fe183b3b290b0dc44a1e190c91c45a4c2d1b4bf98b479d8",
+      "15ec53c0e9b7a7737e85532214f2b64a2f43dbb99812a0e352e1957437db1fd5"
+     ],
+     "pearson": [
+      0.5332,
+      0.2217,
+      0.1756,
+      0.1529
+     ],
+     "ssim": [
+      0.351,
+      0.1291,
+      0.1273,
+      0.1002
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.5332,
+       0.2224,
+       0.0925,
+       0.0966
+      ],
+      [
+       0.5867,
+       0.2217,
+       0.1398,
+       0.1303
+      ],
+      [
+       0.4958,
+       0.1889,
+       0.1756,
+       0.1466
+      ],
+      [
+       0.3581,
+       0.1617,
+       0.1821,
+       0.1529
+      ]
+     ],
+     "own_argmax": 1
+    },
+    "STEM_v1_s0_step900": {
+     "checkpoint_sha256": "569e170065cca160eb6ce64a0707d81e5e016857b0962498c156cba80f6d3b7d",
+     "source": "asset 721351745",
+     "doe_png_sha256": "656ef44f161971d8eb92e9f4884394cc32257f299d6a66d0b48ec0f05e3e866a",
+     "recon_png_sha256": [
+      "b0bf7a432c376d0e66ce5e3d4259fcd25f6886509d70b2ff632e46fff1ddd22a",
+      "01c2c6d18933ca06c93fe821f63d0b31136f3e280899fa99c61f8ac69d07b17d",
+      "9fcd02babc1b8a5f20c61add281c819be09ab4d8a1133b9fa76a4dc7e1e32ad4",
+      "5cb211a9fadef337ba158ced4ea816e91d1697a50dee61f0cc90b4cc5113c8f4"
+     ],
+     "pearson": [
+      0.4819,
+      0.3891,
+      0.4635,
+      0.416
+     ],
+     "ssim": [
+      0.4062,
+      0.3147,
+      0.3886,
+      0.3428
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.4819,
+       0.2309,
+       0.1694,
+       0.149
+      ],
+      [
+       0.325,
+       0.3891,
+       0.3174,
+       0.2399
+      ],
+      [
+       0.2203,
+       0.2372,
+       0.4635,
+       0.3309
+      ],
+      [
+       0.1717,
+       0.1694,
+       0.3501,
+       0.416
+      ]
+     ],
+     "own_argmax": 4
+    },
+    "STEM_v2_native12k_s0": {
+     "checkpoint_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+     "source": "asset 721714285",
+     "doe_png_sha256": "95082426b159b3ba2953604db1a674ffd6d97844995d8023b1d2fe31461a4574",
+     "recon_png_sha256": [
+      "261b3945c629f989683054802788dc37d25ca0a640858ecb53c8a661bd690739",
+      "ab9bb6e4dedcaac34d3814ffc664616f1b63a68096fc899b527b6cb6ae7d7bba",
+      "1d08c3c144382df6cb80e0c39a065d5fb4ef528c06e02863746ccf711d44a9e1",
+      "6b660ae7e49c58cb3b190f0df370febf7792d168383c9599cb09974f3425e2db"
+     ],
+     "pearson": [
+      0.4968,
+      0.4398,
+      0.4714,
+      0.4699
+     ],
+     "ssim": [
+      0.4182,
+      0.3831,
+      0.463,
+      0.4007
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.4968,
+       0.2795,
+       0.1788,
+       0.192
+      ],
+      [
+       0.3457,
+       0.4398,
+       0.3194,
+       0.2809
+      ],
+      [
+       0.2509,
+       0.2902,
+       0.4714,
+       0.3729
+      ],
+      [
+       0.209,
+       0.2208,
+       0.3613,
+       0.4699
+      ]
+     ],
+     "own_argmax": 4
+    }
+   },
+   "output_pitch_m": [
+    1.00165625e-05,
+    1.05153125e-05,
+    1.1014062500000001e-05,
+    1.15128125e-05
+   ],
+   "target_png_sha256": [
+    "00c9faa76724add511f7931335dbc5de47893dba9889e549d5c160ee03456985",
+    "87f54aaa743bff1fcf3a701b082e86e65a8fa6da5a4c834a2cb4c33104187a5d",
+    "017f1c3cf8dcd9e2fac2b417264ba910e2951fcad6457f276b99a44812fb3659",
+    "df7d93ec92d1dd294b09bf10f0afbda37866c287e0df7e3d45029960ffc86625"
+   ]
+  },
+  {
+   "sample_key": "B64:016",
+   "role": "B hard (#47)",
+   "val_dir": "010",
+   "models": {
+    "4ch_fallback": {
+     "checkpoint_sha256": "ba699b7464ca448dd367399a5509914468c23c0d1990bb3771692f4ad4fb16a2",
+     "source": "asset 720489303 (model/best.pt)",
+     "doe_png_sha256": "a4a661ddc5b841fd90965dd6157ccf6403c7ee2ce4be0d8f1301525a36728855",
+     "recon_png_sha256": [
+      "bcf667218ddacb01b4b4c0d3993ebaf1bc30a6d0b693811491f2c6ba1517c713",
+      "ffe5583bdc180ff1c0a6c487eb36e322519de8e46739dbdeec5e99dc328bf04c",
+      "49fecaf7c45657933d83c34b062f879ebf3f2f8e42f2312b7c7e6107efd8f68b",
+      "479caaed1a3b23156ff82927aa8d2f283d763bb6b91851212eff1a862fa96586"
+     ],
+     "pearson": [
+      0.2898,
+      0.0321,
+      0.2865,
+      0.0068
+     ],
+     "ssim": [
+      0.2679,
+      0.0194,
+      0.155,
+      0.0242
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.2898,
+       0.1053,
+       0.1688,
+       0.0205
+      ],
+      [
+       0.5699,
+       0.0321,
+       0.2807,
+       -0.0054
+      ],
+      [
+       0.6655,
+       -0.0475,
+       0.2865,
+       0.0184
+      ],
+      [
+       0.6461,
+       -0.0045,
+       0.2516,
+       0.0068
+      ]
+     ],
+     "own_argmax": 1
+    },
+    "STEM_v1_s0_step900": {
+     "checkpoint_sha256": "569e170065cca160eb6ce64a0707d81e5e016857b0962498c156cba80f6d3b7d",
+     "source": "asset 721351745",
+     "doe_png_sha256": "4415c8867f2d32e73ee143d221ceb9373a8a45dbea2f1cfc6da4d8af73cadc66",
+     "recon_png_sha256": [
+      "2b48acd3c5dc88bb24a52f1aa45a44ad0df4c8359cfcd564257c373688446207",
+      "bb2323f85175a5645d441d4f618a6399f11c3f93127e6a5c0f8c224e38cfc1b6",
+      "b919675ecce209befc3dc95aad547d52cd675f3964489e7551ed56983f57a92a",
+      "8bc3e29e9219ff7696a255f5680c492d3c9d47bd39dbec1720ffdf4fed69fa56"
+     ],
+     "pearson": [
+      0.179,
+      0.5419,
+      0.4902,
+      0.3491
+     ],
+     "ssim": [
+      0.18,
+      0.4274,
+      0.4202,
+      0.3388
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.179,
+       0.0171,
+       0.3154,
+       -0.0134
+      ],
+      [
+       0.2385,
+       0.5419,
+       0.3874,
+       -0.0371
+      ],
+      [
+       0.2926,
+       0.0278,
+       0.4902,
+       0.0235
+      ],
+      [
+       0.3492,
+       -0.0254,
+       0.4244,
+       0.3491
+      ]
+     ],
+     "own_argmax": 2
+    },
+    "STEM_v2_native12k_s0": {
+     "checkpoint_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+     "source": "asset 721714285",
+     "doe_png_sha256": "cad9e438346b272d099a0182de76876a9b1ad0f7a50decf52cc495c7690d74e1",
+     "recon_png_sha256": [
+      "fe5f141bb56f07d47a6177164caa836fcbce997c7df556fe5fe0d5b060240f21",
+      "41306d11fc2eb309623943ac35bcae3e46e8b9c2c90262979d64e0139c1a0160",
+      "a4c2389b972c3275911acccb8d51377d62d703dda6d73ec61cf866af0c84ed6d",
+      "c77cee02d2e36ec43ebc1d017fd62dcb34ce7fb388a1b162e58d59b03b148c9b"
+     ],
+     "pearson": [
+      0.1515,
+      0.5732,
+      0.4931,
+      0.4184
+     ],
+     "ssim": [
+      0.1532,
+      0.4563,
+      0.4267,
+      0.4134
+     ],
+     "own_target_4x4_pearson": [
+      [
+       0.1515,
+       0.0234,
+       0.2924,
+       -0.0185
+      ],
+      [
+       0.2068,
+       0.5732,
+       0.3721,
+       -0.0474
+      ],
+      [
+       0.2488,
+       0.0467,
+       0.4931,
+       0.0324
+      ],
+      [
+       0.3038,
+       -0.0474,
+       0.4304,
+       0.4184
+      ]
+     ],
+     "own_argmax": 2
+    }
+   },
+   "output_pitch_m": [
+    1.00165625e-05,
+    1.05153125e-05,
+    1.1014062500000001e-05,
+    1.15128125e-05
+   ],
+   "target_png_sha256": [
+    "f875060ea99492157bfb31b1f98b41c916ae82ce93250736093a3379d3359070",
+    "43b9b300089594ee40585106fa089678e7cb9088f534164c7fa8f1f0f70a7a63",
+    "1db8bf518011f16f5c62fff2fb49249c915b8b90268a20f5f2830acfbe7723f9",
+    "63d58c5f5fe293cb84c3c4b8bf09f7cee4ffc5e6a743724ba72e4f7f60eeb3d8"
+   ]
+  }
+ ],
+ "figure": {
+  "file": "sheet_TARGET_4ch_v1_v2_A060_B012_B016.png",
+  "sha256": "e6ffade8aca6405463114b84f3780bf51562fde60c378f33449b99c817ad2b7e",
+  "tiles_pixel_identical_to_raw_png": true,
+  "layout": "rows per quartet: TARGET, 4ch_fallback, STEM_v1, STEM_v2; columns z1..z4; labels only in margins"
+ },
+ "release_asset": {
+  "name": "defense-raw-4z-A060-B012-B016.zip",
+  "asset_id": 721948530,
+  "release": "data-4b-v1 (private draft)",
+  "sha256": "62b96b6bfec88cb686b0db44c79ebbea260ebf5c7680c68a5d1a0fce43d06bec",
+  "bytes": 1130234,
+  "contents": "per quartet: TARGET z1..z4 PNG, and for each model DOE.png + recon_z1..z4.png (byte copies of official exports), sheet PNG, this manifest"
+ },
+ "provenance_notes": {
+  "4ch_fallback": "stock doe_experiments.cli neural, runtime 6785eca, VAL16 = 0.4181/0.3215",
+  "STEM_v1_s0_step900": "stock evaluate_checkpoints export; A64:006 byte-identical to package CLI",
+  "STEM_v2_native12k_s0": "package v2 CLI on CPU; VAL16 = 0.61243/0.55356, max per-quartet |dP| vs GPU eval 4.5e-5",
+  "builder": "@playerr456 #50 B, 2026-11-08 ~00:15 MSK; VAL only, TEST never opened"
+ }
+}
