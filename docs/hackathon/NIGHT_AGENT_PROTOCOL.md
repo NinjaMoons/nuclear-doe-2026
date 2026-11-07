@@ -52,3 +52,16 @@ Deliver the strongest eligible **neural** multi-plane DOE model before deadline,
 After pulling this protocol: report one heartbeat in owned issue (not a made-up confirmation):
 `ACK_PROTOCOL; ROLE; HOST1/2; CUDA+VRAM; ACTUAL_JOB; LATEST_SHA; QUOTA/RESET/TZ; NEXT_ACTIVE; RECOVERY_MECHANISM=MANUAL_OR_SCHEDULER`.
 All prompts and AI conversations are guidance, not a replacement for OS-level independent jobs. Persistent unattended scheduling, if chosen, requires actual installed scheduled job and authorized credentials; do not assert it exists without testing.
+
+
+ 
+## Built-in Claude Code schedules — verified in official documentation (updated tonight)
+
+Claude Code has **supported** `/loop`, Desktop scheduled tasks and cloud `/schedule`; choose carefully, rather than claiming all agents must wake manually.
+- `/loop 10m check current GitHub tasks, local GPU/PID status and NEXT_STEP; do NOT start duplicate training; stop research at time gates` can poll in an *already-open CLI session*. It uses subscription messages and stops when the CLI is closed/limit exhausted; not suitable for wasteful 1-min polling.
+- **Claude Desktop local scheduled task:** can start a *new local Claude session* on a chosen schedule without an open CLI, accessing local files/GPU. REQUIRES Desktop app still running and computer awake, plus plan quota. Use an isolated worktree if available; the prompt MUST read saved NEXT_STEP/current GitHub status and not restart finished jobs. Create one bounded *resume/check at exact known reset+buffer* and verify the task is listed and scheduled.
+- **Cloud scheduled task**: can run with computer off and check GitHub/PRs at >=1 hour intervals, but ordinary cloud environment lacks direct access to private Windows GPU and may not have local credentials; do not substitute it for GPU training. All runs consume the SAME subscription quota, so the task may be rejected during quota exhaustion and retry only at a later configured run.
+- For GPU jobs themselves: persistent OS subprocess/Windows Scheduled Task or authorized process supervisor, logs and PIDs; it should run deterministic Python training without Claude tokens. Pair with the human/agent re-entry after reset if configured.
+- Avoid permanent quota-consuming loops, hidden overage spending or automated repeated 429 retries. Turn off scheduled agents after official deadline. If scheduling is NOT actually tested, report `RESUME_MANUALLY` and retain correct checkout instructions.
+
+Official: https://code.claude.com/docs/en/scheduled-tasks and https://code.claude.com/docs/en/desktop-scheduled-tasks and https://code.claude.com/docs/en/routines .
