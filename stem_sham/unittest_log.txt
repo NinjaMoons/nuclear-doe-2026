@@ -1,0 +1,9 @@
+test_bank_is_train_and_size (stem_sham.test_sham.T.test_bank_is_train_and_size) ... ok
+test_chirp_is_target_independent (stem_sham.test_sham.T.test_chirp_is_target_independent) ... ok
+test_same_init_after_stem_and_shapes (stem_sham.test_sham.T.test_same_init_after_stem_and_shapes) ... ok
+test_shuffle_never_self_and_deterministic (stem_sham.test_sham.T.test_shuffle_never_self_and_deterministic) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.407s
+
+OK
