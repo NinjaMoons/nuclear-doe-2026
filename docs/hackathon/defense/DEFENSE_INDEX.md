@@ -5,11 +5,11 @@
 
 ## Executive facts, verified
 
-**Contest contract:** input FOUR grayscale **amplitude** 128×128 targets at z=24.1,25.3,26.5,27.7 mm; λ=532 nm, DOE pixel pitch 10 µm; ONE 8-bit phase-only DOE; 4 native-grid single-FFT Fresnel `|U|` amplitude reconstructions; per-plane Pearson and *global* SSIM from **quantized DOE.png reloaded** and **saved reconstructed PNG reloaded**. One trained neural forward must produce the DOE, no per-input Adam/GS inference. Exact STEM use of deterministic inverse Fresnel features still awaiting organizer-specific acknowledgement.
+**Contest contract:** input FOUR grayscale **amplitude** 128×128 targets at z=24.1,25.3,26.5,27.7 mm; λ=532 nm, DOE pixel pitch 10 µm; ONE 8-bit phase-only DOE; 4 native-grid single-FFT Fresnel `|U|` amplitude reconstructions; per-plane Pearson and *global* SSIM from **quantized DOE.png reloaded** and **saved reconstructed PNG reloaded**. Our submitted solution uses one trained neural forward to produce the DOE; the organizer allows neural approaches but rejected per-input Adam/GS iterative refinement after the network. Exact STEM use of deterministic inverse Fresnel features still awaiting organizer-specific acknowledgement.
 
 | Model | Frozen checkpoint / package | VAL16 Pearson | VAL16 SSIM | A Pearson | B Pearson | B own targets | Status |
 |---|---|---:|---:|---:|---:|---:|---|
-| pure-NN 4ch fallback | asset 720489303 | .4181 | .3215 | .551 | .286 | depends on example | Protected |
+| pure-NN 4ch fallback | asset 720489303 | .4181 | .3215 | .551 | .286 | **8/32** | Protected |
 | STEM v1 s0 step900 | asset 721351745, checkpoint `569e1700…3b7d` | .5778 | .5067 | .7298 | .4257 | 24/32 | Protected, independently reviewed |
 | **STEM v2 s0 step12000 native-only** | asset **721714285**, checkpoint `19b05dad…083f` | **.61243** | **.55356** | **.7733** | **.4516** | **25/32** | Separate ZIP, independently audited, not necessarily submitted |
 
@@ -62,3 +62,12 @@ Owner `@NinjaMoons` via #47: make small files on a dedicated git branch under `d
 - Latest selected checkpoint for the defense must equal the final release checkpoint; **if training capacity experiment wins, update ALL corresponding data, diagrams, captions and sources, not just the number**.
 - Verify all artifact URLs and hashes, every chart and image is sourced, and there is no hand-made contrast or denoising of the reconstructions.
 - Submission channel and real receipt are **PENDING** until independently verified. Team internal 08 Nov 09:30 MSK; organizer email says absolute deadline 10:00 with Stop Coding 09:00–09:30. Aim earlier. No claims that uploading to a private GitHub draft constitutes official contest submission.
+
+
+## 07 Nov night: CPU host and distilled-student preparation
+
+- Matvey laptop: Intel i5-13420H (8 cores/12 threads), 15.7 GiB RAM (4.4 GiB free at audit), Intel UHD graphics, **no NVIDIA/CUDA**; PyTorch 2.9.0+cpu. Measured STEM step 0.25–0.6s, VAL export adds ~3min. Evidence [#40 host report](https://github.com/NinjaMoons/nuclear-doe-2026/issues/40). Do not run long training on this host while useful CPU parallel tasks remain.
+- Matvey's R16 teacher-student pilot is PRE-REGISTERED, code+6 unit tests PASS, **NOT TRAINED / NOT PROMOTED**. Code branch `research/r16-teacher-student-prep` @ `cce75bc2`, review via [#49](https://github.com/NinjaMoons/nuclear-doe-2026/issues/49). Diagnostic TRAIN-only teacher50 improves on four small train examples; this is NOT independent proof that student improves, nor a valid contest inference algorithm.
+- Use idle CPU for R16 static tests, optics/metric QA, original contact-sheet verification, provenance/manifest and editable slide-source generation while Sanya's separate RTX4070Ti runs width/depth research. If Matvey's HOME DESKTOP becomes available remotely, first report actual GPU model/VRAM, torch/CUDA, jobs and speed before adding any parallel train job.
+- B own-target for 4ch = **8/32** on frozen VAL (not unknown); STEM v1 B own = 24/32 and V2 = 25/32, with ghosting still substantial on B. Source [#47 QA addendum](https://github.com/NinjaMoons/nuclear-doe-2026/issues/47).
+- Claude quota screenshots given by Pavel around 23:16 MSK: Matvey 5h **43% likely remaining** resetting Sun 02:30 MSK, weekly **53% likely remaining** resetting Friday 05:00; Sanya session **34% USED** resetting Sun 00:50 MSK, weekly 16% USED resetting Friday 21:00. Screenshot interpretation may differ by product; treat as provisional and ask agent to check live UI before planning major call-heavy job. Do not store account secrets.
