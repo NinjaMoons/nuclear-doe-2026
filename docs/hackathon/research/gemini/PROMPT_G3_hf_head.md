@@ -20,6 +20,9 @@ Pearson + global SSIM). Contest rule: ONE neural forward at inference, no per-in
 - Running now: (R18) network head producing a_k maps from decoder features (zero-init, exact network at step 0);
   (R8-RES, teammate) phi = phi_net + atan2(im, re), (re, im) = 1x1 conv over decoder features + the 8 Re/Im B_k channels,
   init bias (1,0).
+- RESULT R8-RES (fine-tune from the network, 6000 steps, 2 seeds): dP +.0002 [-.0023,+.0020]; the head is used
+  (|w| ~.85, mean |atan2| .16 rad) but (re,im) stays far from zero, mask roughness stays .08 -> gradient descent on R3
+  from the smooth network basin does not exploit the HF path. A from-scratch variant (random phasor init) is running.
 
 QUESTIONS (answer each, with equations):
 1. Is F2 consistent with physics? Explain why per-quartet gains need mask structure at 1-3 pixel scales for our
@@ -34,4 +37,7 @@ QUESTIONS (answer each, with equations):
    (e.g. phase from a learned complex combination of B_k with non-zero target phase priors, multi-scale B_k, learned
    per-plane focusing kernels). For each: exact formula, why it differs from R18/R8-RES, cost, and a counterexample where
    it cannot help.
+5. Given the R8-RES null: what single-forward training change would move the solution OUT of the smooth basin
+   (e.g. curriculum, initialisation, objective term) without per-input optimisation at inference? One proposal, one
+   prediction, one refutation condition.
 Answer compactly; mark every claim as derived / estimated / speculative.
