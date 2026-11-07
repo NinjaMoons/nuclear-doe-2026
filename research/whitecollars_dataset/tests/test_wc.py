@@ -195,9 +195,31 @@ def test_manifest_member_defines_splits(tmp_path, corpus):
         rows.append({"id": f"s{i}", "split": "train" if i < 2 else "test", "paths": paths})
     m["manifest.json"] = json.dumps({"schema": "doe-manifest/1", "samples": rows}).encode()
     code, audit, mapping, *_ = run(tmp_path, corpus[0], m)
-    assert audit["manifest_member"] == "manifest.json"
+    assert audit["manifest_member"] == ["manifest.json"]
     assert audit["split_counts"] == {"train": 2, "test": 1}
     assert mapping["quartets"]["s2"]["split"] == "test" and "s2" in mapping["excluded"]
+
+
+def test_all_manifests_merged_nested_relative(tmp_path, corpus):
+    """Real WhiteCollars layout: root/manifest.json (train/val) + root/stress/manifest.json (val), sample_id keys,
+    01..04.png names. A nested manifest must not shadow the top-level one (regression)."""
+    m, top, stress = {}, [], []
+    for i in range(3):
+        paths = [f"train/{i:06d}/{z:02d}.png" for z in range(1, 5)]
+        for z, p in enumerate(paths):
+            m["root/" + p] = png_bytes(pattern(700 + 10 * i + z))
+        top.append({"sample_id": f"train_{i:06d}", "split": "train", "images": paths})
+    paths = [f"validation/g1/{z:02d}.png" for z in range(1, 5)]
+    for z, p in enumerate(paths):
+        m["root/stress/" + p] = png_bytes(pattern(800 + z))
+    stress.append({"sample_id": "train_000000", "split": "validation", "images": paths})
+    m["root/manifest.json"] = json.dumps({"samples": top}).encode()
+    m["root/stress/manifest.json"] = json.dumps({"samples": stress}).encode()
+    code, audit, mapping, *_ = run(tmp_path, corpus[0], m)
+    assert audit["manifest_member"] == ["root/manifest.json", "root/stress/manifest.json"]
+    assert audit["split_counts"] == {"train": 3, "val": 1}
+    assert mapping["quartets"]["train_000001"]["paths"][0] == "root/train/000001/01.png"
+    assert mapping["quartets"]["root/stress/manifest.json:train_000000"]["split"] == "val"
 
 
 def test_adapter_exact_contract_and_isolation(tmp_path, corpus):

@@ -74,8 +74,14 @@ def split_from_path(name: str):
 
 
 def find_manifest_samples(texts: dict):
-    """Return (member_name, [{'key','split','paths'}]) from the first JSON member that lists 4-path samples."""
-    for name, txt in sorted(texts.items()):
+    """Return (member_names, [{'key','split','paths'}]) merged from EVERY JSON member that lists 4-path samples.
+
+    All manifests are read (e.g. a top-level manifest.json plus stress/manifest.json); paths are resolved relative to
+    each manifest's directory. A key seen in two manifests is prefixed with its manifest name; the same 4 paths listed
+    twice are kept once (first manifest by path depth, then name).
+    """
+    names, rows, seen_paths, seen_keys = [], [], set(), set()
+    for name, txt in sorted(texts.items(), key=lambda kv: (len(PurePosixPath(kv[0]).parts), kv[0])):
         if not name.lower().endswith(".json"):
             continue
         try:
@@ -84,7 +90,7 @@ def find_manifest_samples(texts: dict):
             continue
         lists = [obj] if isinstance(obj, list) else [v for v in obj.values() if isinstance(v, list)] if isinstance(obj, dict) else []
         for lst in lists:
-            rows = []
+            got = []
             for row in lst:
                 if not isinstance(row, dict):
                     break
@@ -92,12 +98,21 @@ def find_manifest_samples(texts: dict):
                 if not paths or len(paths) != 4 or not all(isinstance(x, str) for x in paths):
                     break
                 split = row.get("split")
-                rows.append({"key": str(row.get("key", row.get("id", ""))), "split": SPLIT_NAMES.get(str(split).lower()) if split else None,
-                             "paths": [str(PurePosixPath(base_dir_join(name, x))) for x in paths]})
+                got.append({"key": str(row.get("key", row.get("id", row.get("sample_id", "")))),
+                            "split": SPLIT_NAMES.get(str(split).lower()) if split else None,
+                            "paths": [str(PurePosixPath(base_dir_join(name, x))) for x in paths]})
             else:
-                if rows:
-                    return name, rows
-    return None, []
+                if got:
+                    names.append(name)
+                    for r in got:
+                        if tuple(r["paths"]) in seen_paths:
+                            continue
+                        seen_paths.add(tuple(r["paths"]))
+                        if r["key"] and r["key"] in seen_keys:
+                            r["key"] = f"{name}:{r['key']}"
+                        seen_keys.add(r["key"])
+                        rows.append(r)
+    return (names or None), rows
 
 
 def base_dir_join(manifest_name: str, rel: str) -> str:
@@ -201,8 +216,10 @@ def run(archive: Path, corpus: Path, out_dir: Path, expect_sha: str | None = Non
         if fsha in ours["test_file_sha"]:
             findings["test_overlap"].append({"name": name, "ours": ours["test_file_sha"][fsha], "by": "file sha256"})
         if ext in base.TEXT_EXT:
-            txt = data[:2_000_000].decode("utf-8", "replace")
-            texts[name] = txt
+            # full JSON text for manifest parsing (member size is already capped by the base auditor); the keyword
+            # scan below keeps the 2 MB window. A truncated manifest would silently fail to parse (regression).
+            texts[name] = data.decode("utf-8", "replace") if ext == ".json" else data[:2_000_000].decode("utf-8", "replace")
+            txt = texts[name][:2_000_000]
             hit = {k: [m.group(0)[:60] for m in r.finditer(txt)][:5] for k, r in base.NUM_KW.items()}
             kw = sorted({m.group(0).lower() for m in base.OPTICS_KW.finditer(txt)})
             if kw:
