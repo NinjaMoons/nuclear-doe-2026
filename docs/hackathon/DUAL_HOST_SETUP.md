@@ -73,7 +73,7 @@ ssh gpu-notebook "nvidia-smi -L"
 
 ## One-off task assignment once laptop CUDA confirmed
 
-**Desktop:** finish already ACTIVE train-only teacher/student distillation (#43). Its current loss uses direct circular phase alignment; Matvey's `R16 optical_display` is a related alternative, NOT a duplicate full training run without research justification. No premature renaming of done/candidate.
+**Desktop:** finish the current #43 ACTIVE experiment **W32d3 24000-update constant-vs-cosine LR recipe**; width/depth capacity runs and train-only phase-teacher distillation have already returned CAPACITY_NEUTRAL and DISTILL_NEUTRAL. Matvey's `R16 optical_display` is only a separate possible next research hypothesis, requiring scientific gate and free host after this run. Don't relaunch failed runs.
 
 **Laptop:** ask Grigoriy #49 for the highest-ranked **non-overlapping** tested research card; potentially B quartet recombination after true independence/provenance tests, frequency-aware loss pilot with anti-speckle controls, or train-only DATA generator validation, each one-factor and pre-registered. Use exact same official output metric pipeline and compare with V2 (P=.61243 SSIM=.55356 B=.4516, 25/32). If time is too short, use its GPU for independent fast replay/benchmark of desktop's candidate rather than speculative training.
 
