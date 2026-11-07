@@ -1,6 +1,6 @@
 # Review routing only: current private-repo plan does not enforce protection.
 * @NinjaMoons
-# Confirmed collaborator with write access; other module owners await invitations.
+# Confirmed module owners; invitations are historical, not a current blocker.
 /doe_core/asm.py @ggmaster913 @NinjaMoons
 /tests/core/test_asm.py @ggmaster913 @NinjaMoons
 /docs/modules/asm.md @ggmaster913 @NinjaMoons
