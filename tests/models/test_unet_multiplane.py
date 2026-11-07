@@ -845,3 +845,99 @@ def test_integration_driver_with_production_components(tmp_path):
     log = _json.loads((out / "train_log.json").read_text())
     assert log["propagator"] == "propagate_fresnel"
     assert log["val"][-1]["metrics"]["source"].startswith("official")
+
+
+# --------------------------------------------------------------------------- selective split materialization (#5D)
+class _SpyLoader:
+    """Wraps the test PNG loader and records which split each decoded quartet came from."""
+
+    def __init__(self):
+        self.splits = []
+
+    def __call__(self, paths):
+        folder = pathlib.Path(paths[0]).parent.name              # e.g. "test0"
+        self.splits.append(folder.rstrip("0123456789"))
+        return _png_loader(paths)
+
+
+import pathlib  # noqa: E402
+
+
+def _spy_components(spy):
+    return tm.DriverComponents(propagate=ScreenStub(), load_quartet=spy,
+                               val_metrics=lambda a, t: {"pearson_plane": [0.0] * 4, "ssim_plane": [0.0] * 4},
+                               export_run=_fake_export)
+
+
+def test_load_manifest_default_still_materializes_every_split(tmp_path):
+    spy = _SpyLoader()
+    data = tm.load_manifest(_write_manifest(tmp_path), load_quartet=spy)
+    assert sorted(set(spy.splits)) == ["test", "train", "val"]
+    assert all(data["splits"][s]["targets"].shape[0] == len(data["splits"][s]["ids"]) for s in tm.SPLITS)
+    assert data["materialized"] == list(tm.SPLITS)
+
+
+def test_load_manifest_materializes_only_selected_splits(tmp_path):
+    spy = _SpyLoader()
+    data = tm.load_manifest(_write_manifest(tmp_path), load_quartet=spy, materialize=("train", "val"))
+    assert set(spy.splits) == {"train", "val"} and len(spy.splits) == 6
+    test = data["splits"]["test"]
+    assert test["ids"] == ["c1:test0", "c1:test1"] and len(test["paths"]) == 2 and len(test["origins"]) == 2
+    assert test["materialized"] is False and data["splits"]["train"]["materialized"] is True
+    with pytest.raises(KeyError, match="not materialized"):
+        test["targets"]
+    assert data["materialized"] == ["train", "val"]
+
+
+@pytest.mark.parametrize("selection", [(), ("dev",), ("val", "val"), "val"])
+def test_load_manifest_rejects_bad_materialize_selection(selection, tmp_path):
+    with pytest.raises(ValueError):
+        tm.load_manifest(_write_manifest(tmp_path), load_quartet=_png_loader, materialize=selection)
+
+
+INACTIVE_TEST_DEFECTS = {
+    "bad_sha_in_test": lambda m: m["samples"][-1]["sha256"].__setitem__(0, "0" * 64),
+    "duplicate_key_in_test": lambda m: m["samples"][-1].__setitem__("local_sample_id", m["samples"][0]["local_sample_id"]),
+    "origin_shared_train_test": lambda m: m["samples"][-1].__setitem__("origin_id", m["samples"][0]["origin_id"]),
+    "escaping_path_in_test": lambda m: m["samples"][-1]["paths"].__setitem__(0, "../outside.png"),
+}
+
+
+@pytest.mark.parametrize("name", list(INACTIVE_TEST_DEFECTS))
+def test_defects_in_a_non_materialized_split_are_still_rejected(name, tmp_path):
+    path = _write_manifest(tmp_path, mutate=INACTIVE_TEST_DEFECTS[name])
+    spy = _SpyLoader()
+    with pytest.raises(ValueError):
+        tm.load_manifest(path, load_quartet=spy, materialize=("train", "val"))
+    assert spy.splits == []                                         # validation happens before any decoding
+
+
+def test_driver_training_and_smoke_decode_only_train_and_val(tmp_path):
+    manifest = _write_manifest(tmp_path)
+    for name, extra in (("run", ["--updates", "2", "--eval-every", "1"]), ("smoke", ["--smoke-steps", "2"])):
+        spy = _SpyLoader()
+        rc = tm.main(["--manifest", str(manifest), "--out-dir", str(tmp_path / name), "--device", "cpu",
+                      "--batch-size", "2", "--base-channels", "4", "--depth", "2", *extra],
+                     components=_spy_components(spy))
+        assert rc == 0
+        assert set(spy.splits) == {"train", "val"}, (name, spy.splits)
+    s = _json.loads((tmp_path / "run" / "eval_summary.json").read_text())
+    assert s["splits"] == ["val"]
+    cfg = _json.loads((tmp_path / "run" / "run_config.json").read_text())
+    assert cfg["split_sizes"] == {"train": 4, "val": 2, "test": 2} and cfg["materialized_splits"] == ["train", "val"]
+
+
+@pytest.mark.parametrize("eval_splits, decoded", [(None, {"val"}), (["test"], {"test"}), (["val", "test"], {"val", "test"})])
+def test_evaluate_checkpoint_decodes_only_requested_splits(eval_splits, decoded, tmp_path):
+    manifest = _write_manifest(tmp_path)
+    tm.main(["--manifest", str(manifest), "--out-dir", str(tmp_path / "run"), "--device", "cpu", "--updates", "1",
+             "--batch-size", "2", "--base-channels", "4", "--depth", "2", "--no-eval"], components=_components())
+    spy = _SpyLoader()
+    argv = ["--manifest", str(manifest), "--out-dir", str(tmp_path / "eval"), "--device", "cpu",
+            "--evaluate-checkpoint", str(tmp_path / "run" / "checkpoints" / "best.pt")]
+    if eval_splits:
+        argv += ["--eval-splits", *eval_splits]
+    assert tm.main(argv, components=_spy_components(spy)) == 0
+    assert set(spy.splits) == decoded
+    s = _json.loads((tmp_path / "eval" / "eval_summary.json").read_text())
+    assert set(s["splits"]) == decoded
