@@ -1,0 +1,16 @@
+{
+ "arm": "treatment",
+ "objective": "research_r16_r3_plus_25_optical_distill_v0",
+ "mu": 25.0,
+ "labels_meta": {
+  "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+  "student_checkpoint_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+  "teacher_steps": 50,
+  "n": 512,
+  "best_step0_fraction": 0.0
+ },
+ "n_train_labelled": 512,
+ "train_r16_sha256": "06cf76a174e37ef4bd9b91c2d421186d92db9ced4cac206f4a77b2dc07b1d3e1",
+ "torch": "2.9.0+cpu",
+ "note": "research only; never for #8 without separate package + review"
+}
