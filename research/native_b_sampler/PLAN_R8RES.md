@@ -11,3 +11,10 @@ path except the head). Primary step 6000 seed mean. GO if dP >= +.01, dP_B >= +.
 orgsets10 and WC64 not worse; NO_GO if dP <= -.005 or non-finite; else INCONCLUSIVE. Report B inter-z, raw sheets
 A64:060/B64:012/B64:016. Packaging note: a GO would need the head class in the package (loader change) -> separate
 review before any contest use. Start before 02:00, p50/p90 25/40 min.
+
+## Addendum R8-SCRATCH (pre-registered 2026-11-08 00:40 MSK, after R8-RES INCONCLUSIVE, before running)
+Tests the stated mechanism "the smooth V2 basin blocks the phasor head". Same PhasorStemUNet trained from scratch,
+phasor weights N(0,.5), bias 0 (singularities at step 0), sampler randperm(512, gen(seed))[:4], R3, lr 1e-3,
+batch 4, 12000 updates, seeds 0/1. Control = existing W16 12k runs L_native_s0/s1 (same sampler/steps; only the
+head differs). GO as in the plan (dP >= +.01, dB >= +.005 ...); also report phasor-term roughness. If not GO, the
+basin explanation is falsified for this head and #43 research is closed.

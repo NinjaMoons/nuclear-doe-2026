@@ -156,9 +156,64 @@ def train(a):
     print(json.dumps({k: v for k, v in log.items() if k != "history"}))
 
 
+def scratch(a):
+    """R8-SCRATCH: PhasorStemUNet from random init (seed), phasor weights N(0, .5), bias 0 (singularities present
+    from step 0); sampler/steps identical to pilot.py native arm: randperm(512, gen(seed))[:4], R3, lr 1e-3, batch 4."""
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    dev = torch.device("cuda")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    data, msha = native(Path(a.corpus), splits=("train",))
+    T = data["train"]["targets"].to(dev)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(a.seed)
+        model = PhasorStemUNet(base_channels=16, depth=3)
+        torch.nn.init.normal_(model.phasor.weight, std=0.5)
+        torch.nn.init.zeros_(model.phasor.bias)
+    model = model.to(dev)
+    cfg, prop = CaseConfigV1(), tm.production_components().propagate
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    gen = torch.Generator().manual_seed(a.seed)
+    commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
+    (out / "run_config.json").write_text(json.dumps({
+        "experiment_id": "R8-SCRATCH", "seed": a.seed, "updates": a.updates, "lr": 1e-3, "batch": 4,
+        "objective": tw.R3_NAME, "sampler": "randperm(512,gen(seed))[:4] (= pilot native)", "hparams": model.hparams,
+        "phasor_init": "weight N(0,.5), bias 0", "native_manifest_sha256": msha, "code_commit": commit,
+        "git_dirty": dirty, "script_sha256": sha(Path(__file__).read_bytes())}, indent=1), encoding="utf-8")
+    ck = out / "checkpoints"
+    ck.mkdir()
+    hist, t0 = [], time.perf_counter()
+    model.train()
+    for step in range(1, a.updates + 1):
+        idx = torch.randperm(512, generator=gen)[:4].to(dev)
+        batch = T[idx]
+        opt.zero_grad(set_to_none=True)
+        loss, _ = tm._objective(tm.multiplane_amplitudes(model(batch), cfg, prop), batch, tw.R3_NAME)
+        v = float(loss.detach())
+        if not math.isfinite(v):
+            raise RuntimeError(f"non-finite loss at {step}")
+        loss.backward()
+        gn = math.sqrt(sum(float(p.grad.detach().double().square().sum()) for p in model.parameters() if p.grad is not None))
+        if not math.isfinite(gn):
+            raise RuntimeError(f"non-finite grad at {step}")
+        opt.step()
+        hist.append({"step": step, "loss": v, "grad_norm": gn})
+        if step % 4000 == 0 or step == a.updates:
+            tm.save_checkpoint(ck / f"step_{step:06d}.pt", model, config=cfg, code_commit=commit,
+                               train_log={"partial": True, "step": step, "seed": a.seed},
+                               extra={"kind": "periodic", "step": step, "resumable": False, "research_only": True,
+                                      "native_only": True, "experiment_id": "R8-SCRATCH"})
+    log = {"elapsed_s": time.perf_counter() - t0, "history": hist,
+           "checkpoints": {p.name: sha(p.read_bytes()) for p in sorted(ck.glob("*.pt"))}}
+    (out / "train_log.json").write_text(json.dumps(log), encoding="utf-8")
+    print(json.dumps({k: v for k, v in log.items() if k != "history"}))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("train", "eval"))
+    ap.add_argument("cmd", choices=("train", "eval", "scratch"))
     ap.add_argument("--corpus", required=True)
     ap.add_argument("--init")
     ap.add_argument("--evalsets")
@@ -167,7 +222,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("ckpts", nargs="*")
     a = ap.parse_intermixed_args()
-    train(a) if a.cmd == "train" else pilot.evaluate(a)
+    {"train": train, "eval": pilot.evaluate, "scratch": scratch}[a.cmd](a)
 
 
 if __name__ == "__main__":
