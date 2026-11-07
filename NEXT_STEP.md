@@ -1,4 +1,4 @@
-# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 00:47 MSK
+# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 01:12 MSK
 
 Read this first after any quota reset / restart. Then `git fetch origin` and re-read #43, #49, #51, #8 and
 `git show origin/main:docs/hackathon/NIGHT_AGENT_PROTOCOL.md`. Never restart a job whose outputs already exist.
@@ -10,19 +10,15 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
   has no SSH keys). Mode B (separate Claude Code on the laptop + GitHub locks) unless the owner enables OpenSSH there.
   Bootstrap for it: `research/native_b_sampler/LAPTOP_BOOTSTRAP.md`.
 
-## Running / finished on HOST1 (check `nvidia-smi --query-compute-apps=pid,process_name --format=csv`)
-- RUNNING: **R8-RES** (PLAN_R8RES.md): `C:
-uclear-doe-operator\desktop-418res\phasor_s{0,1}` then eval
-  `...8res\eval\eval.json` (log `...8res\eval.log`). Started 00:45. If eval.json exists: analyse vs R17
-  control (`...17\eval\eval.json` control_s0/s1 step 6000) with the plan's gate; do NOT rerun.
-- DONE (no promotion, V2 stays): WC_NEUTRAL, B75_NEUTRAL, CAPACITY_NEUTRAL, DISTILL_NEUTRAL, RECIPE_NEUTRAL
-  (W32 cosine 24k +.005), R17 INCONCLUSIVE. RESULT_*.md in research/native_b_sampler. #43 comments 6712097137,
-  6712581459, 6712712710, 6713131129 and the R17/R8-RES status.
+## State on HOST1
+- GPU IDLE. #43 research CLOSED at 01:10 MSK (no new training after 02:00 anyway). V2 19b05dad = best promoted.
+- All results: research/native_b_sampler/NIGHT_SUMMARY.md + RESULT_*.md; #43 final status comment; assets
+  721613794 (V2 + logs), 722010850 (oracle evidence for #47), 722097549 (research checkpoints, not promoted).
 
-## Queue (decide GO/NO-GO yourself; post evidence to #43)
-1. Analyse R8-RES. If GO: CPU CLI replay needs the PhasorStemUNet class -> report as research candidate only,
-   packaging needs review (#8). If not GO: no new training after 02:00 -> P0 support (#47/#8), independent
-   cross-host replay of whatever the coordinator selects, defense numbers from RESULT_*.md.
+## Queue
+1. P0 only: if #8/#47 asks, run cross-host acceptance/replay of the selected package on this desktop (CPU CLI,
+   `research/desktop41_p0/replay_stem_val.py`), check slide numbers against NIGHT_SUMMARY.md. No training.
+2. Do NOT rerun any experiment; never touch V1/V2/4ch packages; no official submission (not the designated submitter).
 
 ## Time gates (MSK)
 02:00 no new training · 04:00 research stop · 05:30 freeze · 07:30-08:00 official submission (designated submitter only).
