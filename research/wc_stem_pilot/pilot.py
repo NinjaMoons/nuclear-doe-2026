@@ -262,7 +262,7 @@ def main():
     ap.add_argument("--ckpt-every", type=int, default=500)
     ap.add_argument("--out", required=True)
     ap.add_argument("ckpts", nargs="*")
-    a = ap.parse_args()
+    a = ap.parse_intermixed_args()
     {"prep": prep, "train": train, "eval": evaluate}[a.cmd](a)
 
 
