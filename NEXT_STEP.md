@@ -1,4 +1,4 @@
-# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 02:05 MSK
+# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 02:11 MSK
 
 Read this first after any quota reset / restart. Then `git fetch origin` and re-read #43, #49, #51, #8 and
 `git show origin/main:docs/hackathon/NIGHT_AGENT_PROTOCOL.md`. Never restart a job whose outputs already exist.
@@ -14,6 +14,12 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
 - GPU IDLE. #43 research CLOSED at 01:10 MSK (no new training after 02:00 anyway). V2 19b05dad = best promoted.
 - All results: research/native_b_sampler/NIGHT_SUMMARY.md + RESULT_*.md; #43 final status comment; assets
   721613794 (V2 + logs), 722010850 (oracle evidence for #47), 722097549 (research checkpoints, not promoted).
+
+## Done via #51
+- R19-TPHASE-S0 (Grigoriy card #51/6714199745): DONE 02:10, control .61482/.55916, tphase .61932/.56291, dP +.0045
+  dB +.0087 INCONCLUSIVE; asset 722232793; branch research/sanya-w51-r19@0f8a21f; out C:
+doe-out19_s0_*.
+  Seed 1 only if a new READY card R19-TPHASE-S1 arrives (no self-start).
 
 ## Queue = GitHub #51 (worker, `C:
 uclear-doe-operator\ops\worker51\`, copy in `ops_worker51/`)

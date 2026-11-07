@@ -57,7 +57,7 @@ def main():
         if c["user"]["login"] not in ("NinjaMoons", "ggmaster913"):   # task cards come from coordinator/science gate only
             continue
         m = re.search(r"TASK_ID\s*[=:]\s*`?([A-Za-z0-9_.\-]+)", b)
-        if not m or not re.search(r"STATUS\s*=\s*READY", b) or not re.search(r"TO\s*=\s*@?(MVRto01|DESKTOP-T1K698V)", b):
+        if not m or not re.search(r"STATUS\s*=\s*READY", b) or not re.search(r"(TO\s*=\s*@?|for\s+@?)(MVRto01|DESKTOP-T1K698V)|MVRto01\s*/\s*DESKTOP-T1K698V", b):
             continue
         tid = m.group(1)
         if tid in s["processed"]:
@@ -67,8 +67,12 @@ def main():
     gpu = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
                          capture_output=True, text=True).stdout
     gpu_py = [l.strip() for l in gpu.splitlines() if "python" in l.lower()]
+    unsure = [c["id"] for c in new if re.search(r"TASK_ID\s*[=:]", c["body"]) and re.search(r"STATUS\s*=\s*READY", c["body"])
+              and c["user"]["login"] in ("NinjaMoons", "ggmaster913") and not any(t["comment_id"] == c["id"] for t in tasks)]
     if not tasks and new:
         s["last_comment_id"] = max(c["id"] for c in new)
+    if unsure:
+        s.setdefault("needs_human_look", sorted(set(s.get("needs_human_look", []) + unsure)))
     s["last_tick_msk"] = now.isoformat(timespec="seconds")
     STATE.write_text(json.dumps(s, indent=1), encoding="utf-8")
     action = "BUSY" if (tasks and gpu_py) else ("TASK" if tasks else "NO_TASK")
