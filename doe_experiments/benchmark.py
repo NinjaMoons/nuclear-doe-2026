@@ -28,6 +28,7 @@ PAIRED_SCHEMA = "doe_paired_benchmark_v1"
 # Same relative tolerance the exporter uses for its native-pitch check; not a new threshold.
 PITCH_RTOL = 1e-12
 NOT_MEASURED = "not_measured"
+NOT_RECORDED = "not_recorded"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SAMPLE_KEY = re.compile(r"^([AB])\d+:\d+$")
 METRICS = ("pearson", "ssim")
@@ -154,6 +155,15 @@ def _validate_export(run_dir: Path) -> dict:
         if (not isinstance(source, dict) or not isinstance(source.get("path"), str)
                 or source.get("sha256") != _hash(_inside(root, f"targets/target_{index:02d}.png"))):
             raise ValueError("input source hash does not match the archived ordered target")
+    # Format only (8-bit grayscale IHDR, mode L, 128x128) with the strict project loader;
+    # pixel values are not used and no metric is recomputed.
+    from doe_experiments.data import load_png_quartet
+    for kind, names in (("target", [f"targets/target_{i:02d}.png" for i in range(1, 5)]),
+                        ("reconstruction", [p["reconstruction"] for p in planes])):
+        try:
+            load_png_quartet([_inside(root, name) for name in names])
+        except ValueError as exc:
+            raise ValueError(f"{kind} PNG format rejected by load_png_quartet: {exc}") from exc
     export_time = _number(manifest.get("elapsed_export_s"), "export elapsed time", lower=0)
     if not isinstance(manifest.get("timing_scope"), str) or not manifest["timing_scope"]:
         raise ValueError("export timing scope is required")
@@ -234,7 +244,43 @@ def _neural_provenance(metadata: dict) -> dict:
             "training": {k: training.get(k) for k in ("method", "propagator", "steps", "lr", "batch_size",
                                                        "seed", "n_train", "n_val", "best_step",
                                                        "observation", "loss_policy")},
-            "training_manifest_sha256": metadata.get("manifest_sha256")}
+            # The export has no record of the training corpus manifest; never substitute the
+            # evaluation manifest for it.
+            "training_manifest_sha256": "not_recorded_in_export"}
+
+
+def _scope(scopes: dict, name: str) -> bool:
+    return isinstance(scopes.get(name), str) and bool(scopes[name].strip())
+
+
+def _recorded_split(metadata: dict) -> str | None:
+    split = metadata.get("split")
+    if split is not None and (not isinstance(split, str) or not split):
+        raise ValueError("recorded split must be a nonempty string")
+    return split
+
+
+def _recorded_eval_manifest(metadata: dict) -> str | None:
+    value = metadata.get("manifest_sha256")
+    if value is not None and (not isinstance(value, str) or not _SHA256.match(value)):
+        raise ValueError("recorded evaluation manifest SHA256 is malformed")
+    return value
+
+
+def _known(values, name: str, where: str) -> str:
+    """The single known value (absent sides take the other side's value) or 'not_recorded'."""
+    known = {v for v in values if v is not None and v != NOT_RECORDED}
+    if len(known) > 1:
+        raise ValueError(f"{name} conflict {where}: {sorted(known)}")
+    return known.pop() if known else NOT_RECORDED
+
+
+def _adam_profile_for_pairing(adam: dict) -> None:
+    steps, lr = adam["adam"]["steps"], adam["adam"]["lr"]
+    if type(steps) is not int or steps < 1:
+        raise ValueError("paired comparison requires recorded positive integer Adam steps")
+    if isinstance(lr, bool) or not isinstance(lr, (int, float)) or not math.isfinite(lr) or lr <= 0:
+        raise ValueError("paired comparison requires recorded finite positive Adam lr")
 
 
 def _plane_scores(planes: list[dict]) -> list[dict]:
@@ -255,8 +301,11 @@ def summarize_run(run_dir: Path) -> dict:
             "output_pitches_m": manifest["output_pitches_m"],
             "reconstruction_policy": manifest["reconstruction_policy"], "ssim_policy": manifest["ssim_policy"],
             "primary_source": PRIMARY_SOURCE,
-            "sample_key": metadata.get("sample_key"), "split": metadata.get("split"),
+            "sample_key": metadata.get("sample_key"), "split": _recorded_split(metadata),
             "origin_id": metadata.get("origin_id"),
+            # Driver evaluate_checkpoint writes metadata.manifest_sha256 from the EVALUATED data.
+            "evaluation_manifest_sha256": _recorded_eval_manifest(metadata),
+            "evaluation_manifest_source": "metadata.manifest_sha256 (manifest of the evaluated data)",
             "target_sha256": [s["sha256"] for s in run["sources"]],
             "planes": _plane_scores(run["planes"]),
             "plane_maxima": manifest.get("plane_maxima"), "plane_exposures": manifest.get("plane_exposures"),
@@ -284,8 +333,11 @@ def summarize_run(run_dir: Path) -> dict:
                 raise ValueError("training_verified must be a boolean when recorded")
             scope = metadata.get("neural_timing_scope")
             scope = scope if isinstance(scope, dict) else {}
-            load_s = _optional_time(metadata.get("checkpoint_load_elapsed_s"), "checkpoint load time")
-            infer_s = _optional_time(metadata.get("inference_elapsed_s"), "inference time")
+            # A time without a nonempty recorded scope is not a measurement.
+            load_s = _optional_time(metadata.get("checkpoint_load_elapsed_s"), "checkpoint load time") \
+                if _scope(scope, "checkpoint_load") else None
+            infer_s = _optional_time(metadata.get("inference_elapsed_s"), "inference time") \
+                if _scope(scope, "inference") else None
             base.update({
                 "trained_neural": True, "dtype": provenance["dtype"], "device": "not_recorded",
                 "neural": provenance,
@@ -420,6 +472,10 @@ def compare_runs(pairs: list[tuple[str | None, Path, Path]]) -> dict:
             raise ValueError(f"second run of a pair must be adam, got {adam['method']}")
         key = _pair_key(explicit, nn, adam)
         _check_pair(nn, adam)
+        _adam_profile_for_pairing(adam)
+        split = _known((nn["split"], adam["split"]), "split", f"in pair {key}")
+        eval_manifest = _known((nn["evaluation_manifest_sha256"], adam["evaluation_manifest_sha256"]),
+                               "evaluation manifest SHA256", f"in pair {key}")
         quartet = tuple(nn["target_sha256"])
         if key in keys or quartet in quartets:
             raise ValueError(f"duplicate sample_key or target quartet: {key}")
@@ -431,7 +487,9 @@ def compare_runs(pairs: list[tuple[str | None, Path, Path]]) -> dict:
         nn_mean = {m: _quartet_mean(nn["planes"], m) for m in METRICS}
         adam_mean = {m: _quartet_mean(adam["planes"], m) for m in METRICS}
         records.append({
-            "sample_key": key, "group": _group(key), "split": nn["split"] or adam["split"],
+            "sample_key": key, "group": _group(key), "split": split,
+            "split_recorded": {"nn": nn["split"] or NOT_RECORDED, "adam": adam["split"] or NOT_RECORDED},
+            "evaluation_manifest_sha256": eval_manifest,
             "target_sha256": nn["target_sha256"],
             "nn_run": {"run_dir": nn["run_dir"], "manifest_sha256": nn["manifest_sha256"],
                        "metrics_sha256": nn["metrics_sha256"], "timing": nn["timing"],
@@ -448,6 +506,9 @@ def compare_runs(pairs: list[tuple[str | None, Path, Path]]) -> dict:
         raise ValueError("all pairs must use one NN checkpoint/code commit/dtype")
     if len(adam_profiles) != 1:
         raise ValueError("all pairs must use one fixed Adam profile (seed/steps/lr/dtype)")
+    report_split = _known([r["split"] for r in records], "split", "across pairs of one report")
+    report_eval = _known([r["evaluation_manifest_sha256"] for r in records],
+                         "evaluation manifest SHA256", "across pairs of one report")
     first_nn, first_adam = records[0]["_nn"], records[0]["_adam"]
     for record in records:
         del record["_nn"], record["_adam"]
@@ -462,6 +523,8 @@ def compare_runs(pairs: list[tuple[str | None, Path, Path]]) -> dict:
         "config": first_nn["config"], "output_pitches_m": first_nn["output_pitches_m"],
         "reconstruction_policy": first_nn["reconstruction_policy"], "ssim_policy": first_nn["ssim_policy"],
         "primary_source": PRIMARY_SOURCE, "synthetic_test": first_nn["synthetic_test"],
+        "split": report_split, "evaluation_manifest_sha256": report_eval,
+        "evaluation_manifest_source": "metadata.manifest_sha256 (manifest of the evaluated data)",
         "nn_profile": {"method": NEURAL_METHOD, **first_nn["neural"], "dtype": first_nn["dtype"],
                        "device": devices["nn"], "training_verified": first_nn["training_verified"],
                        "training_verification": first_nn["training_verification"],

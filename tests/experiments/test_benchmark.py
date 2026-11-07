@@ -437,3 +437,98 @@ def test_legacy_adam_report_keys_unchanged(artifact_double):
         "run_dir", "synthetic_test", "config", "seed", "dtype", "reconstruction_policy", "ssim_policy", "planes",
         "input_sources", "artifact_sha256", "manifest_sha256", "metrics_sha256", "git_sha", "dependencies",
         "reproduce_argv", "timing"}
+
+
+# ------------------------------------------------------------------ COORDINATOR_FIX bb8f660 regressions
+def test_frozen_driver_nn_with_adam_cli_without_split_is_accepted(tmp_path):
+    nn_dir, adam_dir = make_pair(tmp_path)  # NN: split=test + eval manifest; Adam CLI: neither
+    report = compare_runs([(None, nn_dir, adam_dir)])
+    pair = report["pairs"][0]
+    assert pair["split"] == "test" and pair["split_recorded"] == {"nn": "test", "adam": "not_recorded"}
+    assert pair["evaluation_manifest_sha256"] == "cd" * 32
+    assert report["split"] == "test" and report["evaluation_manifest_sha256"] == "cd" * 32
+    assert report["nn_profile"]["training_manifest_sha256"] == "not_recorded_in_export"
+
+
+def test_split_and_eval_manifest_not_recorded_on_both_sides(tmp_path):
+    nn_dir, adam_dir = make_pair(tmp_path)
+    rewrite_manifest(nn_dir, lambda m: [m["metadata"].pop(k) for k in ("split", "manifest_sha256")])
+    report = compare_runs([(None, nn_dir, adam_dir)])
+    assert report["split"] == "not_recorded" and report["evaluation_manifest_sha256"] == "not_recorded"
+
+
+@pytest.mark.parametrize("fault", ["pair_split", "pair_eval_sha", "mixed_split", "mixed_eval_sha",
+                                   "bad_split", "bad_eval_sha"])
+def test_split_and_evaluation_manifest_conflicts_fail(tmp_path, fault):
+    nn_dir, adam_dir = make_pair(tmp_path)
+    pairs = [(None, nn_dir, adam_dir)]
+    if fault == "pair_split":
+        rewrite_manifest(adam_dir, lambda m: m["metadata"].update({"split": "val"}))
+    elif fault == "pair_eval_sha":
+        rewrite_manifest(adam_dir, lambda m: m["metadata"].update({"manifest_sha256": "ef" * 32}))
+    elif fault == "bad_split":
+        rewrite_manifest(nn_dir, lambda m: m["metadata"].update({"split": ""}))
+    elif fault == "bad_eval_sha":
+        rewrite_manifest(nn_dir, lambda m: m["metadata"].update({"manifest_sha256": "short"}))
+    else:
+        nn2, adam2 = make_pair(tmp_path, "B64:003", seeds=(5, 6, 7, 8))
+        change = {"split": "val"} if fault == "mixed_split" else {"manifest_sha256": "ef" * 32}
+        rewrite_manifest(nn2, lambda m: m["metadata"].update(change))
+        pairs.append((None, nn2, adam2))
+    with pytest.raises(ValueError):
+        compare_runs(pairs)
+
+
+@pytest.mark.parametrize("field,value", [("steps", None), ("steps", 0), ("steps", True), ("steps", "16"),
+                                         ("steps", 2.5), ("lr", None), ("lr", 0), ("lr", -0.05),
+                                         ("lr", True), ("lr", "0.05")])
+def test_paired_comparison_requires_recorded_adam_steps_and_lr(tmp_path, field, value):
+    nn_dir, adam_dir = make_pair(tmp_path)
+    rewrite_manifest(adam_dir, lambda m: m["metadata"].pop(field) if value is None
+                     else m["metadata"].update({field: value}))
+    with pytest.raises(ValueError, match=f"Adam {field}"):
+        compare_runs([(None, nn_dir, adam_dir)])
+
+
+def test_legacy_adam_api_still_accepts_missing_steps_and_lr(artifact_double):
+    root, manifest, _ = artifact_double
+    assert "steps" not in manifest["metadata"] and "lr" not in manifest["metadata"]
+    assert summarize_adam_run(root)["seed"] == 17
+
+
+@pytest.mark.parametrize("scope", [None, {}, {"checkpoint_load": "", "inference": "  "}])
+def test_time_without_recorded_scope_is_not_measured(tmp_path, scope):
+    meta = neural_metadata() | {"checkpoint_load_elapsed_s": 0.0001, "inference_elapsed_s": 0.0001}
+    if scope is not None:
+        meta["neural_timing_scope"] = scope
+    timing = summarize_run(build_run(tmp_path / "nn", meta))["timing"]
+    assert timing["checkpoint_load_s"] is None and timing["checkpoint_load_scope"] == "not_measured"
+    assert timing["inference_s"] is None and timing["inference_scope"] == "not_measured"
+
+
+def rehash(root, name):
+    def change(manifest):
+        key = next(k for k in manifest["files"] if k.replace("\\", "/") == name)
+        manifest["files"][key] = digest(root / name)
+        for i, source in enumerate(manifest["input_sources"], 1):
+            if name == f"targets/target_{i:02d}.png":
+                source["sha256"] = digest(root / name)
+    rewrite_manifest(root, change)
+
+
+@pytest.mark.parametrize("fault", ["target_256", "target_rgb", "target_16bit", "recon_rgb", "recon_256"])
+def test_png_format_checked_with_strict_loader_despite_consistent_hashes(tmp_path, fault):
+    run = build_run(tmp_path / "nn", neural_metadata())
+    pixels = np.random.default_rng(3).integers(0, 256, size=(128, 128), dtype=np.uint8)
+    name = "targets/target_01.png" if fault.startswith("target") else "reconstructed_02.png"
+    if fault.endswith("256"):
+        image = Image.fromarray(np.zeros((256, 256), dtype=np.uint8), mode="L")
+    elif fault.endswith("rgb"):
+        image = Image.fromarray(np.stack([pixels] * 3, axis=-1), mode="RGB")
+    else:
+        image = Image.fromarray(pixels.astype(np.uint16) * 257).convert("I;16")
+    image.save(run / name, format="PNG")
+    rehash(run, name)
+    kind = "target" if fault.startswith("target") else "reconstruction"
+    with pytest.raises(ValueError, match=f"{kind} PNG format"):
+        summarize_run(run)

@@ -47,7 +47,9 @@ already denotes amplitude. The collector performs no display conversion.
 All export checks (both methods) additionally require `output_pitches_m` equal to
 `CaseConfigV1().plane(i).output_pitch_m(128, 128)` (rtol 1e-12, the exporter's own
 tolerance), `planes[i].reconstruction == reconstructed_{i+1:02d}.png`, and a DOE.png
-that `load_doe_png` accepts (PNG, L, uint8, 128x128). Nothing is resampled or reordered.
+that `load_doe_png` accepts (PNG, L, uint8, 128x128). The four ordered targets and the
+four reconstructions must pass the strict `load_png_quartet` (8-bit grayscale IHDR,
+mode L, 128x128) even when their hashes are consistent. Nothing is resampled or reordered.
 
 `summarize_run(run_dir)` (CLI `--run-dir DIR --method any`) returns a schema-2 summary
 of an Adam or `fourinput_unet` export. For NN it requires checkpoint SHA256/format,
@@ -56,8 +58,12 @@ missing or malformed provenance fails. `training_verified` is copied as recorded
 (`false` from the inference CLI, `not_recorded` from the training driver export);
 independent acceptance of training is never inferred from a checkpoint
 (`independent_training_acceptance = not_recorded_by_collector`). Load/inference times
-are reported only when the export records them with their scope, otherwise
-`not_measured`; the driver export runs batched inference and records neither.
+are reported only when the export records them together with a nonempty scope; a value
+without a scope is `null` with scope `not_measured`. The driver export runs batched
+inference and records neither. `metadata.manifest_sha256` is reported as
+`evaluation_manifest_sha256` (the driver writes the manifest of the EVALUATED data);
+the export does not record a training-corpus manifest, so
+`training_manifest_sha256 = not_recorded_in_export`.
 
 `compare_runs(pairs)` and the CLI compare already exported runs; they rerun nothing:
 
@@ -70,7 +76,13 @@ any recorded key (the Adam CLI export records none, the inference CLI export nei
 Each pair must have the same sample_key, the same ORDERED four target SHA256
 (`ordered target quartet mismatch at plane i`, no sorting), identical contract,
 config, native output pitches, PNG/SSIM policies, phase dtype and synthetic flag.
-All pairs must share one NN checkpoint/commit and one fixed Adam seed/steps/lr/dtype.
+All pairs must share one NN checkpoint/commit and one fixed Adam seed/steps/lr/dtype;
+the paired path requires recorded positive integer `steps` and finite positive `lr`
+(the legacy Adam API does not). Recorded `split` and evaluation manifest SHA256 must
+agree inside a pair and across all pairs of one report; a side that does not record
+them (Adam/inference CLI) takes the other side's value, and if neither records them
+the report says `not_recorded`. VAL and TEST, or two evaluation manifests, are never
+mixed in one report.
 
 Per metric m: `M_i = mean of the 4 plane scores of quartet i` per method and
 `delta_i = M_i(NN) - M_i(Adam)`. A quartet with any undefined Pearson has undefined
