@@ -89,3 +89,13 @@ ssh gpu-notebook "nvidia-smi -L"
 - [ ] Claude quota used/remaining + reset + timezone and safe resume mechanism documented.
 - [ ] GitHub latest tasks and protected candidate SHAs verified; no TEST/whitecollars violations.
 - [ ] At least one independent V2 P0 acceptance and official submission/defense owner remains allocated.
+
+
+## Supported scheduling choices (official Claude Code docs)
+
+In addition to OS Task Scheduler, Claude Code supports:
+1. `/loop 10m ...` inside an *open* CLI for short polling while the session runs. It does **not** survive exiting without resume and consumes quota. Avoid tighter intervals.
+2. **Claude Desktop local scheduled tasks**: local GPU/files accessible, new session starts on schedule even if CLI session closed; the Desktop app must be open and the PC awake. This is best for a **single scheduled recovery check after a known quota reset** if installed. Runbook must read NEXT_STEP and detect already-running job first.
+3. **Claude Code cloud `/schedule`**: can run when PC off and read GitHub, but no access to local GPU in standard Anthropic cloud environment. Rejected when subscription limit exhausted (unless authorized overage); do not use it to bypass quota.
+Both require setup in the user's Claude account and verification in Scheduled tasks UI; this repo instruction does NOT create them. Only designated owner enables any paid/overage setting, never agent without approval.
+Docs: https://code.claude.com/docs/en/desktop-scheduled-tasks , https://code.claude.com/docs/en/routines , https://code.claude.com/docs/en/scheduled-tasks .
