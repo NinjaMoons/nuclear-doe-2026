@@ -64,3 +64,23 @@ READ_ONLY. No GPU, no TEST, no new training, no GO. Sources:
 - **Scientific next step:** no automatic training GO. Wait for C3/C4 (R23 pre-check) and R22 s0.
   - Only if C3 points to expressivity: R23 head GO (separate gate).
   - If C3 points to ambiguity: no architecture tweak is credible before freeze. V2 remains, and this diagnosis becomes the defense narrative.
+
+## Addendum 04:40 — C3/C4 result ([#50/6715648310](https://github.com/NinjaMoons/nuclear-doe-2026/issues/50#issuecomment-6715648310), @playerr456, TRAIN only, 179 s GPU)
+
+On B64:000:
+
+| run | P | HF (r > .5 Nyq) |
+|---|---|---|
+| N1, W16 network overfit on 1 quartet | .656 | .59 |
+| ORACLE | .662–.670 | .67–.77 |
+| N64 | .494 | .24 |
+
+C4 HF swap: ΔP −.12 / −.11, so the HF is target-specific and coherent.
+
+**Accepted:**
+- **Expressivity REJECTED:** the existing architecture can represent oracle-level coherent HF for one target.
+- **H3 "why" → amortisation across targets.** The network collapses to smooth HF when it must serve many quartets. This is consistent with the multi-modal solution set (R21: equally good phases unrelated).
+
+**Caveat:** the update budget per quartet is unmatched (N64 ≈ 188 passes vs 3000), so "ambiguity" vs "per-quartet budget" is not fully separated (1 seed, 1 quartet). The V2 history argues against pure budget: 12k steps on 512 quartets ≈ 94 passes each, and 12× longer training gave only +.035, with TRAIN ≈ VAL.
+
+**Implication:** no head/width tweak can close the gap before the freeze. V2 remains. This is the defense narrative: one network *can* produce oracle-quality phase for a single target, but one-pass amortisation over targets averages out the multi-modal coherent HF.
