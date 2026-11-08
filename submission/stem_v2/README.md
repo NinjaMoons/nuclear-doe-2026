@@ -27,9 +27,17 @@ python -c "import hashlib,pathlib; p=pathlib.Path('model/stem_native_s0_step_012
 
 SHA256 весов — `19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f`. Исходный runtime `6785eca6e5c7f94a914214c1aac5bd5984792824`, STEM `1790a37b1d170c599ed6bfae7de668d87d3798dd`. Список файлов и контрольные суммы в `RELEASE_MANIFEST.json` и `SHA256SUMS.txt`.
 
+Из корня комплекта можно сверить все файлы одной командой на Windows и Linux:
+
+~~~text
+python -c "from hashlib import sha256; from pathlib import Path; rows=[s.split(None,1) for s in Path('SHA256SUMS.txt').read_text(encoding='utf-8').splitlines()]; bad=[p for h,p in rows if sha256(Path(p).read_bytes()).hexdigest()!=h]; assert not bad,bad; print(len(rows),'files verified')"
+~~~
+
 ## Запуск
 
 Из папки `src`. Замените четыре пути реальными файлами и укажите новую выходную папку.
+
+**Для конкурсного синтеза используйте только нейросетевую команду ниже.** Команда `adam` общего CLI оставлена для исторических проверок. Нейросетевой entrypoint её не вызывает.
 
 ~~~text
 python -m back_projection_stem.infer_neural_stem --checkpoint ../model/stem_native_s0_step_012000.pt --targets z1.png z2.png z3.png z4.png --output-dir NEW_DIR

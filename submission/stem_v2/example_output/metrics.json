@@ -1,0 +1,77 @@
+{
+  "sample": "synthetic_5F",
+  "primary_source": "reloaded_uint8_PNG_from_reloaded_DOE",
+  "observation": "amplitude",
+  "doe_sha256": "4f23bc33a553c82bf95925d746eb76d027c40f8e0b4094346b7bfd05a8dd26b3",
+  "config": {
+    "wavelength_m": 5.32e-07,
+    "input_pitch_m": [
+      1e-05,
+      1e-05
+    ],
+    "distances_m": [
+      0.0241,
+      0.0253,
+      0.0265,
+      0.0277
+    ],
+    "image_shape": [
+      128,
+      128
+    ]
+  },
+  "output_pitches_m": [
+    [
+      1.00165625e-05,
+      1.00165625e-05
+    ],
+    [
+      1.05153125e-05,
+      1.05153125e-05
+    ],
+    [
+      1.1014062500000001e-05,
+      1.1014062500000001e-05
+    ],
+    [
+      1.15128125e-05,
+      1.15128125e-05
+    ]
+  ],
+  "python": "3.12.10",
+  "dependencies": {
+    "torch": "2.9.0+cpu",
+    "numpy": "2.3.4",
+    "Pillow": "13.0.0"
+  },
+  "planes": [
+    {
+      "index": 0,
+      "distance_m": 0.0241,
+      "reconstruction": "reconstructed_01.png",
+      "pearson": 0.36085227414010695,
+      "ssim": 0.20107240950962554
+    },
+    {
+      "index": 1,
+      "distance_m": 0.0253,
+      "reconstruction": "reconstructed_02.png",
+      "pearson": 0.349972822719317,
+      "ssim": 0.2187893236102443
+    },
+    {
+      "index": 2,
+      "distance_m": 0.0265,
+      "reconstruction": "reconstructed_03.png",
+      "pearson": 0.5121473338803743,
+      "ssim": 0.2948622864925793
+    },
+    {
+      "index": 3,
+      "distance_m": 0.0277,
+      "reconstruction": "reconstructed_04.png",
+      "pearson": 0.43910325714092024,
+      "ssim": 0.28345783393782326
+    }
+  ]
+}

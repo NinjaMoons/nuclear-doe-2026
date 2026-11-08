@@ -2,9 +2,11 @@
 
 Нейросетевой синтез дифракционных оптических элементов · Nuclear IT Hack 2026.
 
-## STEM V2 contest candidate
+## Конкурсное решение STEM V2
 
-Four 128×128 L8 amplitude targets → one trained neural pass → DOE.png L8 → four native-grid Fresnel amplitude PNG and Pearson/global SSIM. See [CPU instructions](submission/stem_v2/README.md). This source draft requires an approved judge download URL for the standalone package.
+Четыре амплитудных PNG L8 128×128 в порядке z = 24,1 / 25,3 / 26,5 / 27,7 мм поступают в обученную сеть. Один проход предсказывает фазовую маску. После сохранения и чтения DOE.png четыре реконструкции Френеля записываются как амплитудные L8 PNG. Pearson и global SSIM рассчитываются после чтения PNG. Длина волны 532 нм, шаг ДОЭ 10 мкм. Итеративного уточнения фазы при конкурсном инференсе нет.
+
+[Комплект и команды для Windows/Linux](submission/stem_v2/README.md) включают исходники, точный checkpoint, синтетические входы, готовые DOE и четыре реконструкции. [Манифест](submission/stem_v2/RELEASE_MANIFEST.json) и [SHA256SUMS](submission/stem_v2/SHA256SUMS.txt) фиксируют файлы комплекта. Для клонирования приватного репозитория нужна учётная запись с разрешённым доступом.
 
 ## Разработка
 - [Контракт модулей](docs/INTERFACES.md) — формы, единицы, нормировки, сигнатуры и артефакты.

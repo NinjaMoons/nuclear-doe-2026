@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "LOCAL_JUDGE_CANDIDATE_AWAITING_OWNER_APPROVAL",
+  "status": "PRIVATE_GIT_RELEASE_CANDIDATE",
   "version": "STEM V2 native12k s0",
   "runtime_git_sha": "6785eca6e5c7f94a914214c1aac5bd5984792824",
   "stem_git_sha": "1790a37b1d170c599ed6bfae7de668d87d3798dd",
@@ -17,14 +17,16 @@
     "group_b_pearson": 0.4516
   },
   "verification": {
-    "single_forward_cpu_smoke": "PASS on synthetic_5F",
-    "physics_reference_cases_passed": 12,
-    "data_roundtrip_cases_passed": 1,
-    "checkpoint_sha256": "PASS",
+    "reference_example": "synthetic_5F",
     "judge_access": "NOT_VERIFIED",
     "official_submission_receipt": "NOT_VERIFIED"
   },
   "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 44,
+      "sha256": "1830451dccd7007c97616968b75327fccfd4da9227b012e386e30156958ed039"
+    },
     {
       "path": "example_output/DOE.png",
       "bytes": 14851,
@@ -82,8 +84,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4781,
-      "sha256": "a70503a12e4f069e45bf8eac0ae7a577ed737c8fab4e6b72b16fc604ca2ed068"
+      "bytes": 5522,
+      "sha256": "653e69ad0d8fbd5f8f1e8a4d1e499c20b4022e02e8e1a2efcb2e593c758a3b69"
     },
     {
       "path": "src/back_projection_stem/__init__.py",
@@ -200,5 +202,6 @@
       "bytes": 4756,
       "sha256": "f4e49e2f8e1dee4b5d0f9cd58f9cf819c18b8bb1bb0fc723ff189046020318fc"
     }
-  ]
+  ],
+  "input_archive_sha256": "9c1af4362407107484d5e54f840c560feadbfcb924014d860803697fb8972a61"
 }
