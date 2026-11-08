@@ -228,15 +228,111 @@ def precheck(a):
     (out / "precheck_report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
 
 
+_prev_load = tw.research_load_checkpoint   # phasor.load_any (handles R8 heads)
+
+
+def load_r23(path):
+    payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    hp = payload.get("hparams") if isinstance(payload, dict) else None
+    if isinstance(hp, dict) and hp.get("phasor_head") == "r23_fourier_phasor_v0":
+        saved = tm.FourInputUNet
+        tm.FourInputUNet = FourierPhasorStemUNet
+        try:
+            return tm._stock_load_for_phasor(path)
+        finally:
+            tm.FourInputUNet = saved
+    return _prev_load(path)
+
+
+tw.research_load_checkpoint = load_r23
+
+
+def full(a):
+    """OWNER-AUTHORISED full run (no SCIENCE_GATE=GO at launch): both arms 12k, seed, const lr, then official VAL16."""
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    dev = torch.device("cuda")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    data, msha = native(Path(a.corpus), splits=("train", "val"))
+    T = data["train"]["targets"].to(dev)
+    if len(data["train"]["ids"]) != 512 or len(data["val"]["ids"]) != 16:
+        raise SystemExit("unexpected split sizes")
+    cfg, prop = CaseConfigV1(), tm.production_components().propagate
+    commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
+    meta = {"experiment_id": "R23-FULL-OWNER", "science_gate_at_launch": "PENDING (owner-authorised)", "seed": a.seed,
+            "updates": a.updates, "lr": 1e-3, "batch": 4, "objective": tw.R3_NAME, "sampler": "randperm(512,gen(seed))[:4]",
+            "native_manifest_sha256": msha, "code_commit": commit, "git_dirty": dirty,
+            "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), "arms": {}}
+    ckpts = []
+    for arm in ("r8_scratch", "r23"):
+        model = build(arm, a.seed).to(dev)
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        gen = torch.Generator().manual_seed(a.seed)
+        ck = out / arm / "checkpoints"
+        ck.mkdir(parents=True)
+        hist, t0 = [], time.perf_counter()
+        model.train()
+        for step in range(1, a.updates + 1):
+            batch = T[torch.randperm(512, generator=gen)[:4].to(dev)]
+            opt.zero_grad(set_to_none=True)
+            loss, _ = tm._objective(tm.multiplane_amplitudes(model(batch), cfg, prop), batch, tw.R3_NAME)
+            v = float(loss.detach())
+            if not math.isfinite(v):
+                raise RuntimeError(f"{arm}: non-finite loss at {step}")
+            loss.backward()
+            opt.step()
+            if step % 100 == 0:
+                hist.append({"step": step, "loss": v})
+            if step % 1000 == 0:
+                print(json.dumps({"arm": arm, "step": step, "loss": v, "t": round(time.perf_counter() - t0, 1)}), flush=True)
+            if step % 4000 == 0 or step == a.updates:
+                p = ck / f"step_{step:06d}.pt"
+                tm.save_checkpoint(p, model, config=cfg, code_commit=commit,
+                                   train_log={"partial": step < a.updates, "step": step, "seed": a.seed},
+                                   extra={"kind": "periodic", "step": step, "resumable": False, "research_only": True,
+                                          "native_only": True, "experiment_id": f"R23-FULL-OWNER/{arm}"})
+                ckpts.append((arm, step, p))
+        meta["arms"][arm] = {"elapsed_s": time.perf_counter() - t0, "hparams": model.hparams, "history": hist}
+        del model, opt
+        torch.cuda.empty_cache()
+    (out / "run_config.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    # official VAL16 path (DOE u8 save/reload -> 4 amplitude PNG save/reload -> Pearson + global SSIM)
+    import numpy as np
+    from pilot import per_quartet
+    comps = tm.production_components()
+    tm.load_checkpoint = tw.research_load_checkpoint
+    part = data["val"]
+    rows = []
+    for arm, step, p in ckpts:
+        c = out / "eval_ckpts" / f"{arm}__step_{step:06d}.pt"
+        c.parent.mkdir(exist_ok=True)
+        c.write_bytes(p.read_bytes())
+        d = {"splits": {"val": part}, "manifest_sha256": msha, "synthetic": True}
+        s = tm.evaluate_checkpoint(c, d, comps, out / "val16", dev, CaseConfigV1(), ("val",))["val"]
+        P, S = per_quartet(out / "val16" / "export" / c.name / "val")
+        row = {"arm": arm, "step": step, "sha256": hashlib.sha256(c.read_bytes()).hexdigest(),
+               "pearson": s["pearson_mean"], "ssim": s["ssim_mean"], "per_quartet_pearson": P, "per_quartet_ssim": S,
+               "ids": part["ids"]}
+        for g in ("A", "B"):
+            ii = [i for i, k in enumerate(part["kinds"]) if k == g]
+            row[g] = {"pearson": float(np.mean([P[i] for i in ii])), "ssim": float(np.mean([S[i] for i in ii]))}
+        rows.append(row)
+        print(json.dumps({k: row[k] for k in ("arm", "step", "pearson", "ssim", "A", "B")}), flush=True)
+    (out / "eval_val16.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    print("DONE", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("precheck",))
+    ap.add_argument("cmd", choices=("precheck", "full"))
     ap.add_argument("--corpus", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--updates", type=int, default=100)
     a = ap.parse_args()
-    precheck(a)
+    {"precheck": precheck, "full": full}[a.cmd](a)
 
 
 if __name__ == "__main__":
