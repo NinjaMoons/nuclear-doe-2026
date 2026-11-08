@@ -1,0 +1,85 @@
+{
+ "manifest_sha256": "76d2474d63abcd56759b7ccfe6a780ba6c2ea7968ad8b1d4a688feae8d6f1c78",
+ "n": 64,
+ "subset_seed": 2026,
+ "zero": {
+  "A": {
+   "P": 0.5367571276571133,
+   "worst_plane_mean": 0.37576047245103517,
+   "own_argmax": 94,
+   "planes": 128
+  },
+  "B": {
+   "P": 0.30114163108199415,
+   "worst_plane_mean": 0.09603429508015439,
+   "own_argmax": 69,
+   "planes": 128
+  },
+  "all": {
+   "P": 0.4189493793695537,
+   "worst_plane_mean": 0.23589738376559477,
+   "own_argmax": 163,
+   "planes": 256
+  }
+ },
+ "quad": {
+  "A": {
+   "P": 0.19139575860421404,
+   "worst_plane_mean": 0.1287589390564054,
+   "own_argmax": 84,
+   "planes": 128
+  },
+  "B": {
+   "P": 0.17005458040650873,
+   "worst_plane_mean": 0.03379957163969145,
+   "own_argmax": 83,
+   "planes": 128
+  },
+  "all": {
+   "P": 0.18072516950536138,
+   "worst_plane_mean": 0.08127925534804842,
+   "own_argmax": 167,
+   "planes": 256
+  }
+ },
+ "randhf": {
+  "A": {
+   "P": 0.36737581198473873,
+   "worst_plane_mean": 0.3339739457404346,
+   "own_argmax": 98,
+   "planes": 128
+  },
+  "B": {
+   "P": 0.34280252894611507,
+   "worst_plane_mean": 0.22995511330918436,
+   "own_argmax": 88,
+   "planes": 128
+  },
+  "all": {
+   "P": 0.35508917046542693,
+   "worst_plane_mean": 0.28196452952480944,
+   "own_argmax": 186,
+   "planes": 256
+  }
+ },
+ "gemini": {
+  "A": {
+   "P": 0.37017025395358694,
+   "worst_plane_mean": 0.3346721591809072,
+   "own_argmax": 102,
+   "planes": 128
+  },
+  "B": {
+   "P": 0.34022545355000633,
+   "worst_plane_mean": 0.22980992358299823,
+   "own_argmax": 88,
+   "planes": 128
+  },
+  "all": {
+   "P": 0.3551978537517967,
+   "worst_plane_mean": 0.2822410413819527,
+   "own_argmax": 190,
+   "planes": 256
+  }
+ }
+}
