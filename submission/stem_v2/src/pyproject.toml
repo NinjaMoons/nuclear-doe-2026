@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nuclear-doe-2026"
+version = "0.0.1"
+description = "Infrastructure and interfaces for AI DOE synthesis"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["doe_core*", "doe_models*", "doe_experiments*", "ui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["integration: cross-module numerical checks", "slow: longer numerical runs excluded from bootstrap scope"]

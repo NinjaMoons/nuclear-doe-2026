@@ -2,7 +2,9 @@
 
 Нейросетевой синтез дифракционных оптических элементов · Nuclear IT Hack 2026.
 
-**Состояние:** инфраструктурный каркас и общий контракт. ASM, Adam, нейросеть и демонстрация пока не реализованы. Полное ТЗ ещё не приложено; публичное описание: [официальный сайт](https://nuclearhack.mephi.ru/).
+## STEM V2 contest candidate
+
+Four 128×128 L8 amplitude targets → one trained neural pass → DOE.png L8 → four native-grid Fresnel amplitude PNG and Pearson/global SSIM. See [CPU instructions](submission/stem_v2/README.md). This source draft requires an approved judge download URL for the standalone package.
 
 ## Разработка
 - [Контракт модулей](docs/INTERFACES.md) — формы, единицы, нормировки, сигнатуры и артефакты.
