@@ -2,6 +2,14 @@
 
 Срез 08.11.2026, 02:30 МСК. Основной GitHub `NinjaMoons/nuclear-doe-2026` приватный. Рабочее дерево подготовки основано на `fb1f855e63c2e724ff14321298df887cf3bc8cf1`, [CI на этом HEAD](https://github.com/NinjaMoons/nuclear-doe-2026/actions/runs/42417516493) зелёный. Локальный bootstrap `21bf4b1` и незакоммиченная папка `docs/research/` сохранены. Активного локального процесса обучения не обнаружено, удалённые машины оценены по опубликованным отчётам.
 
+## Обновление после независимого аудита
+
+- **P0:** ноутбук Александра подтвердил 94/94 хешей защищённого V2, побайтную DOE на A64:006 и расхождение метрик ≤1,1×10⁻⁶. В отдельном judge ZIP проверены байты README и наличие neural CLI. [Аудит #51](https://github.com/NinjaMoons/nuclear-doe-2026/issues/51#issuecomment-6714579373).
+- **Наука:** R19 s1 повторил эффект s0, но средние ΔP +0,0051 и ΔB +0,0087 ниже заранее заданных +0,010/+0,010. V2 сохраняется. R21 закрыт NO_GO. [R19 s1](https://github.com/NinjaMoons/nuclear-doe-2026/issues/51#issuecomment-6714549659) · [R21](https://github.com/NinjaMoons/nuclear-doe-2026/issues/49#issuecomment-6714715739).
+- **Исполнители:** Матвей закончил независимый R19 s0 QA и сообщил о проверенном локальном scheduled-запуске на ноутбуке. Основной ПК Александра опубликовал разовый отчёт из нового процесса Windows Task Scheduler. Устойчивость последующих запусков ещё не подтверждена. [QA Матвея](https://github.com/NinjaMoons/nuclear-doe-2026/issues/50#issuecomment-6714628715) · [Ноутбук Матвея](https://github.com/NinjaMoons/nuclear-doe-2026/issues/50#issuecomment-6714765815) · [ПК Александра](https://github.com/NinjaMoons/nuclear-doe-2026/issues/51#issuecomment-6714786063).
+
+## Исходный срез 02:30 МСК
+
 | Поток и владелец | Статус и доказательство | Следующий шаг |
 | --- | --- | --- |
 | #8 · NinjaMoons | **VERIFIED** локальный комплект STEM V2 и CPU smoke. **BLOCKED** способ доступа судей, подтверждение модели и отправителя, данные формы и квитанция. [P0 и форма](https://github.com/NinjaMoons/nuclear-doe-2026/issues/8#issuecomment-6713973199). | Капитан передаёт требования трека и подтверждает способ передачи. Затем проверить скачивание из аккаунта получателя. |
