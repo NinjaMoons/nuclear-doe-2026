@@ -1,0 +1,232 @@
+{
+ "adjoint": [
+  {
+   "plane": 1,
+   "z_mm": 24.1,
+   "gemini_raw": {
+    "rel_err_max": 2.0016232247082897,
+    "ratio_abs": 0.9983446031583539,
+    "ratio_phase_rad": 3.129779403977096
+   },
+   "fixed_adjoint": {
+    "rel_err_max": 7.043682177852169e-16,
+    "ratio_abs": 1.0000000000000002,
+    "ratio_phase_rad": -1.7972965590640789e-16
+   },
+   "inverse_fresnel": {
+    "rel_err_max": 9.193837264244046e-16,
+    "ratio_abs": 0.9999999999999997,
+    "ratio_phase_rad": -4.371932625733047e-16
+   },
+   "inverse_roundtrip_max_abs_err": 2.7012892057857038e-15
+  },
+  {
+   "plane": 2,
+   "z_mm": 25.3,
+   "gemini_raw": {
+    "rel_err_max": 0.8804355978820197,
+    "ratio_abs": 0.9510156321500068,
+    "ratio_phase_rad": -0.8856883004823715
+   },
+   "fixed_adjoint": {
+    "rel_err_max": 2.742249705302265e-15,
+    "ratio_abs": 0.9999999999999991,
+    "ratio_phase_rad": 2.113470089701105e-16
+   },
+   "inverse_fresnel": {
+    "rel_err_max": 2.6334923883709708e-15,
+    "ratio_abs": 0.9999999999999999,
+    "ratio_phase_rad": 2.644033093910017e-16
+   },
+   "inverse_roundtrip_max_abs_err": 2.7109682159298164e-15
+  },
+  {
+   "plane": 3,
+   "z_mm": 26.5,
+   "gemini_raw": {
+    "rel_err_max": 1.3413861713709176,
+    "ratio_abs": 0.907940091310699,
+    "ratio_phase_rad": 1.3818289293863704
+   },
+   "fixed_adjoint": {
+    "rel_err_max": 7.096387435587206e-16,
+    "ratio_abs": 1.0000000000000002,
+    "ratio_phase_rad": -8.947513335193847e-17
+   },
+   "inverse_fresnel": {
+    "rel_err_max": 5.780057231621884e-16,
+    "ratio_abs": 1.0000000000000002,
+    "ratio_phase_rad": 1.6021454054618882e-16
+   },
+   "inverse_roundtrip_max_abs_err": 2.3618347721471097e-15
+  },
+  {
+   "plane": 4,
+   "z_mm": 27.7,
+   "gemini_raw": {
+    "rel_err_max": 2.0826555914353784,
+    "ratio_abs": 0.8686064744403852,
+    "ratio_phase_rad": -2.633744387546912
+   },
+   "fixed_adjoint": {
+    "rel_err_max": 1.343778742761401e-15,
+    "ratio_abs": 0.9999999999999999,
+    "ratio_phase_rad": 1.0044962058969131e-15
+   },
+   "inverse_fresnel": {
+    "rel_err_max": 1.32913975362453e-15,
+    "ratio_abs": 1.0000000000000004,
+    "ratio_phase_rad": 2.46436936720785e-16
+   },
+   "inverse_roundtrip_max_abs_err": 2.808666774861361e-15
+  }
+ ],
+ "codec": {
+  "n": 200514,
+  "fixed_exact_frac": 1.0,
+  "fixed_max_abs_diff_rad": 0.0,
+  "fixed_max_wrapped_diff_rad": 0.0,
+  "gemini_raw_exact_frac": 0.002004847541817529,
+  "gemini_raw_max_wrapped_diff_rad": 0.04908738521234035,
+  "gemini_raw_examples": {
+   "q=127/255->": 0.49609375
+  },
+  "ste_grad_is_identity": true
+ },
+ "fd_gradient": {
+  "dpsi_head.weight": {
+   "autograd": -0.0038828888745140516,
+   "finite_diff": -0.003882888871542533,
+   "rel_err": 7.652854688683861e-10,
+   "grad_finite": true
+  },
+  "dpsi_encoder.0.weight": {
+   "autograd": -0.00028115850563694534,
+   "finite_diff": -0.0002811585075868095,
+   "rel_err": 6.935106354254497e-09,
+   "grad_finite": true
+  },
+  "encoders.0.0.weight": {
+   "autograd": -0.002527187454182104,
+   "finite_diff": -0.002527187459300251,
+   "rel_err": 2.0252343263908465e-09,
+   "grad_finite": true
+  }
+ },
+ "timing": {
+  "v2_sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f",
+  "params": {
+   "stem_v2": 452481,
+   "r25_dpsi": 509669,
+   "gemini_raw": 117470,
+   "gemini_fixed": 117470
+  },
+  "gpu": "NVIDIA GeForce RTX 4070 Ti",
+  "stem_v2_b1": {
+   "p50_ms": 5.165550042875111,
+   "p90_ms": 5.85110008250922,
+   "peak_vram_mb_above_weights": 6.85302734375,
+   "out_shape": [
+    1,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "r25_dpsi_b1": {
+   "p50_ms": 6.329650001134723,
+   "p90_ms": 7.353699998930097,
+   "peak_vram_mb_above_weights": 8.4111328125,
+   "out_shape": [
+    1,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "gemini_raw_b1": {
+   "p50_ms": 3.4198499633930624,
+   "p90_ms": 4.095999989658594,
+   "peak_vram_mb_above_weights": 22.1611328125,
+   "out_shape": [
+    1,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "gemini_fixed_b1": {
+   "p50_ms": 5.526950000785291,
+   "p90_ms": 6.224600016139448,
+   "peak_vram_mb_above_weights": 10.1611328125,
+   "out_shape": [
+    1,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "stem_v2_b4": {
+   "p50_ms": 5.064900033175945,
+   "p90_ms": 5.588900065049529,
+   "peak_vram_mb_above_weights": 28.22802734375,
+   "out_shape": [
+    4,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "r25_dpsi_b4": {
+   "p50_ms": 6.343299988657236,
+   "p90_ms": 8.166100014932454,
+   "peak_vram_mb_above_weights": 33.35009765625,
+   "out_shape": [
+    4,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "gemini_raw_b4": {
+   "p50_ms": 3.037000016774982,
+   "p90_ms": 3.419400076381862,
+   "peak_vram_mb_above_weights": 52.10205078125,
+   "out_shape": [
+    4,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "gemini_fixed_b4": {
+   "p50_ms": 5.552500020712614,
+   "p90_ms": 6.0535999946296215,
+   "peak_vram_mb_above_weights": 40.60205078125,
+   "out_shape": [
+    4,
+    1,
+    128,
+    128
+   ],
+   "finite": true
+  },
+  "stem_v2_trainstep_b4": {
+   "p50_ms": 15.500049979891628,
+   "p90_ms": 17.904500011354685,
+   "peak_vram_mb": 165.81787109375
+  },
+  "r25_dpsi_trainstep_b4": {
+   "p50_ms": 22.73969998350367,
+   "p90_ms": 25.00080002937466,
+   "peak_vram_mb": 343.5087890625
+  }
+ }
+}
