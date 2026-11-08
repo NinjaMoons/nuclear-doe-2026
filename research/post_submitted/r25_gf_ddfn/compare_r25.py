@@ -25,6 +25,16 @@ def lp(img, sigma=2.0):  # separable Gaussian low-pass (reflect), used to show d
     return np.apply_along_axis(lambda v: np.convolve(v, k, mode="valid"), 1, a)
 
 
+def own(C, k):  # 1 if row k's best-matching target is k; undefined rows (all NaN, e.g. constant image) count as 0
+    r = np.asarray(C[k], dtype=float)
+    return 0 if np.all(np.isnan(r)) else int(np.nanargmax(r) == k)
+
+
+def nm(x):  # nan-safe mean (NaN if nothing defined), no RuntimeWarning
+    x = np.asarray(x, dtype=float); x = x[~np.isnan(x)]
+    return float(x.mean()) if x.size else float("nan")
+
+
 def wrapdiff(a):
     return np.abs((a + np.pi) % (2 * np.pi) - np.pi)
 
@@ -46,18 +56,18 @@ def load(d):
         def spk(img, m):
             v = img[m]; return float(v.std() / v.mean()) if m.sum() > 10 and v.mean() > 0 else np.nan
         speck = [spk(R[k], T[k] > .5) - spk(T[k], T[k] > .5) for k in range(4)]
-        rows[key] = {"g": key[0], "P": [p["pearson"] for p in met], "S": [p["ssim"] for p in met],
-                     "own_native": sum(int(np.nanargmax(Cn[k]) == k) for k in range(4)),
-                     "own_phys": sum(int(np.nanargmax(Cp[k]) == k) for k in range(4)),
-                     "diag_off_phys": float(np.mean([Cp[k][k] for k in range(4)]) - np.nanmean([Cp[k][j] for k in range(4) for j in range(4) if j != k])),
-                     "interz_rec": float(np.mean([pear(Rp[i], Rp[j]) for i, j in combinations(range(4), 2)])),
-                     "interz_rec_lp": float(np.mean([pear(RL[i], RL[j]) for i, j in combinations(range(4), 2)])),
-                     "own_phys_lp": sum(int(np.nanargmax(CL[k]) == k) for k in range(4)),
-                     "diag_off_phys_lp": float(np.mean([CL[k][k] for k in range(4)]) - np.nanmean([CL[k][j] for k in range(4) for j in range(4) if j != k])),
-                     "interz_tgt_lp": float(np.mean([pear(TL[i], TL[j]) for i, j in combinations(range(4), 2)])),
-                     "interz_tgt": float(np.mean([pear(Tp[i], Tp[j]) for i, j in combinations(range(4), 2)])),
+        rows[key] = {"g": key[0], "P": [p["pearson"] if p.get("pearson_defined", p["pearson"] is not None) else float("nan") for p in met], "S": [p["ssim"] for p in met],
+                     "own_native": sum(own(Cn, k) for k in range(4)),
+                     "own_phys": sum(own(Cp, k) for k in range(4)),
+                     "diag_off_phys": (nm([Cp[k][k] for k in range(4)]) - nm([Cp[k][j] for k in range(4) for j in range(4) if j != k])),
+                     "interz_rec": nm([pear(Rp[i], Rp[j]) for i, j in combinations(range(4), 2)]),
+                     "interz_rec_lp": nm([pear(RL[i], RL[j]) for i, j in combinations(range(4), 2)]),
+                     "own_phys_lp": sum(own(CL, k) for k in range(4)),
+                     "diag_off_phys_lp": (nm([CL[k][k] for k in range(4)]) - nm([CL[k][j] for k in range(4) for j in range(4) if j != k])),
+                     "interz_tgt_lp": nm([pear(TL[i], TL[j]) for i, j in combinations(range(4), 2)]),
+                     "interz_tgt": nm([pear(Tp[i], Tp[j]) for i, j in combinations(range(4), 2)]),
                      "bright": float(np.mean([r.mean() for r in R])), "dark": float(np.mean(dark)),
-                     "speckle_excess": float(np.nanmean(speck)),
+                     "speckle_excess": nm(speck),
                      "doe_rough": float((wrapdiff(np.diff(doe, axis=0)).mean() + wrapdiff(np.diff(doe, axis=1)).mean()) / 2),
                      "_R": R, "_T": T, "_doe": doe}
     return rows
@@ -67,20 +77,23 @@ def summarize(rows):
     out = {}
     for G in ("A", "B", "all"):
         r = [v for v in rows.values() if G == "all" or v["g"] == G]
-        P = np.array([v["P"] for v in r]); S = np.array([v["S"] for v in r])
-        out[G] = {"pearson": float(P.mean()), "ssim": float(S.mean()), "pearson_plane": P.mean(0).tolist(),
-                  "worst_plane_pearson": float(P.mean(0).min()), "own_phys": sum(v["own_phys"] for v in r),
+        P = np.array([v["P"] for v in r], dtype=float); S = np.array([v["S"] for v in r], dtype=float)
+        out[G] = {"PRIMARY_official_native": True, "n_quartets": len(r), "undefined_pearson": int(np.isnan(P).sum()),
+                  "pearson": float(np.nanmean(P)), "ssim": float(S.mean()), "pearson_plane": np.nanmean(P, 0).tolist(),
+                  "worst_plane_pearson": float(np.nanmean(P, 0).min()), "own_phys": sum(v["own_phys"] for v in r),
                   "own_native": sum(v["own_native"] for v in r),
                   "own_phys_lp": sum(v["own_phys_lp"] for v in r), "planes": 4 * len(r)}
         for k in ("diag_off_phys", "diag_off_phys_lp", "interz_rec", "interz_rec_lp", "interz_tgt_lp", "interz_tgt", "bright", "dark", "speckle_excess", "doe_rough"):
-            out[G][k] = float(np.mean([v[k] for v in r]))
+            out[G][k] = nm([v[k] for v in r])  # DIAGNOSTIC (registration / interpolation / ROI dependent)
     return out
 
 
-def boot(d, n=10000, seed=2026):
-    rng = np.random.default_rng(seed); d = np.asarray(d)
+def boot(d, n=10000, seed=2026):  # quartet-level paired bootstrap; with n=8 per group this is NOT evidence of generalization
+    rng = np.random.default_rng(seed); d = np.asarray(d, dtype=float); d = d[~np.isnan(d)]
+    if d.size == 0:
+        return {"mean": None, "ci95": None, "n": 0}
     m = d[rng.integers(0, len(d), (n, len(d)))].mean(1)
-    return {"mean": float(d.mean()), "ci95": [float(np.quantile(m, .025)), float(np.quantile(m, .975))]}
+    return {"mean": float(d.mean()), "ci95": [float(np.quantile(m, .025)), float(np.quantile(m, .975))], "n": int(d.size)}
 
 
 def main():
@@ -92,15 +105,17 @@ def main():
     for m, v in data.items():  # same target pixels for every model (no target swap)
         for k in keys:
             assert all(np.array_equal(a, b) for a, b in zip(v[k]["_T"], data[next(iter(data))][k]["_T"])), (m, k)
-    rep = {"models": models, "summary": {m: summarize(v) for m, v in data.items()}}
+    rep = {"note": "PRIMARY = official native-grid Pearson/SSIM from metrics.json; inter-z (physically registered, bilinear), "
+                   "lp(sigma=2) and own-argmax are DIAGNOSTICS; CIs are quartet-level paired bootstrap (n=8 per group).",
+           "models": models, "summary": {m: summarize(v) for m, v in data.items()}}
     if "control" in data and "treatment" in data:
         c, t = data["control"], data["treatment"]; rep["paired_treatment_minus_control"] = {}
         for G in ("A", "B", "all"):
             ks = [k for k in keys if G == "all" or k[0] == G]
             rep["paired_treatment_minus_control"][G] = {
-                "pearson": boot([np.mean(t[k]["P"]) - np.mean(c[k]["P"]) for k in ks]),
-                "ssim": boot([np.mean(t[k]["S"]) - np.mean(c[k]["S"]) for k in ks]),
-                "worst_plane_quartet": boot([min(t[k]["P"]) - min(c[k]["P"]) for k in ks]),
+                "PRIMARY_pearson": boot([nm(t[k]["P"]) - nm(c[k]["P"]) for k in ks]),
+                "PRIMARY_ssim": boot([nm(t[k]["S"]) - nm(c[k]["S"]) for k in ks]),
+                "PRIMARY_worst_plane_quartet": boot([np.nanmin(t[k]["P"]) - np.nanmin(c[k]["P"]) for k in ks]),
                 "interz_rec": boot([t[k]["interz_rec"] - c[k]["interz_rec"] for k in ks]),
                 "diag_off_phys": boot([t[k]["diag_off_phys"] - c[k]["diag_off_phys"] for k in ks]),
                 "interz_rec_lp": boot([t[k]["interz_rec_lp"] - c[k]["interz_rec_lp"] for k in ks]),

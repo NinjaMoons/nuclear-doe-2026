@@ -73,3 +73,11 @@ def test_gemini_fixed_shapes_batch1_and_4():
         assert y.shape == (b, 1, 128, 128) and torch.isfinite(y).all()
         codes = np.floor(255 * (y.double().numpy() + math.pi) / (2 * math.pi) + 0.5)
         assert np.allclose(decode_phase(codes.astype(np.uint8)), y.double().numpy(), atol=1e-6)
+
+
+def test_compare_own_and_nm_handle_undefined():
+    from r25_gf_ddfn.compare_r25 import nm, own
+    nan = float("nan")
+    C = [[nan] * 4, [0.1, 0.9, 0.2, nan], [0.5, 0.1, 0.4, 0.0], [nan, nan, nan, 0.3]]
+    assert [own(C, k) for k in range(4)] == [0, 1, 0, 1]
+    assert math.isnan(nm([nan, nan])) and nm([1.0, nan, 3.0]) == 2.0
