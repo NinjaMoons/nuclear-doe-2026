@@ -43,5 +43,5 @@ uclear-doe-operator\ops\worker51unner.ps1 (mutex, cooldown, precheck without LL
   for a new READY task to DESKTOP-T1K698V). Self-test 03:00 from a new headless process: #51/6714786063 (PASS).
   Works after this terminal closes (needs the user logged in + PC awake: AC sleep/hibernate = never).
 - Logs: ops\worker51unner.log, runner-state.json, claude-*.json; ledger state.json; lock tick.lock.
-- Old in-session CLI cron 5752bdd8: removed after the first natural scheduled tick is verified.
+- Old in-session CLI cron 5752bdd8: REMOVED 03:17 after the natural scheduled tick 03:16 (PASS). Single poller.
 - Claude quota: UNKNOWN from CLI; on a quota error the runner sets a cooldown (no retry loop).
