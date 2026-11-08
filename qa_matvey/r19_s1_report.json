@@ -1,0 +1,116 @@
+{
+ "sha256sums": {
+  "total": 391,
+  "bad": 0
+ },
+ "control": {
+  "n": 16,
+  "pearson_mean": 0.6126242302555984,
+  "ssim_mean": 0.5562249928696198,
+  "pearson_plane": [
+   0.596624550377826,
+   0.6288966024618835,
+   0.6311932350823763,
+   0.5937825331003082
+  ],
+  "ssim_plane": [
+   0.5149666325827194,
+   0.5769528405633718,
+   0.5891151430894451,
+   0.5438653552429428
+  ],
+  "worst_plane_pearson": 0.5937825331003082,
+  "worst_pair_pearson": 0.15737864789231684,
+  "worst_case": [
+   "B64:016",
+   0,
+   0.15737864789231684
+  ],
+  "max_lsb": 1,
+  "fails": {},
+  "group_A": {
+   "quartets": 8,
+   "own_argmax": 31,
+   "planes": 32,
+   "interz_rec": 0.4167245569097028,
+   "interz_tgt": 0.44871712537873454,
+   "diag_minus_offdiag": 0.3634023729271706
+  },
+  "group_B": {
+   "quartets": 8,
+   "own_argmax": 25,
+   "planes": 32,
+   "interz_rec": 0.3952489883870933,
+   "interz_tgt": 0.06272083709972053,
+   "diag_minus_offdiag": 0.2043337532631091
+  }
+ },
+ "tphase": {
+  "n": 16,
+  "pearson_mean": 0.6182844735911218,
+  "ssim_mean": 0.5677682465811604,
+  "pearson_plane": [
+   0.6137581300015622,
+   0.6298393566585087,
+   0.6328634210712019,
+   0.5966769866332148
+  ],
+  "ssim_plane": [
+   0.5283915279671948,
+   0.5872230433316857,
+   0.6047935948660863,
+   0.550664820159675
+  ],
+  "worst_plane_pearson": 0.5966769866332148,
+  "worst_pair_pearson": 0.17469189094181434,
+  "worst_case": [
+   "B64:002",
+   3,
+   0.17469189094181434
+  ],
+  "max_lsb": 1,
+  "fails": {},
+  "group_A": {
+   "quartets": 8,
+   "own_argmax": 32,
+   "planes": 32,
+   "interz_rec": 0.42620524689030614,
+   "interz_tgt": 0.44871712537873454,
+   "diag_minus_offdiag": 0.3593327861177492
+  },
+  "group_B": {
+   "quartets": 8,
+   "own_argmax": 25,
+   "planes": 32,
+   "interz_rec": 0.40752150598180237,
+   "interz_tgt": 0.06272083709972053,
+   "diag_minus_offdiag": 0.20131046723021967
+  }
+ },
+ "replay": {
+  "control": {
+   "ckpt_sha256": "d92da093094523e1d8691a07e09df622a0c99d946b1027e14fd1126f1bbcbd1b",
+   "has_optimizer_state": false,
+   "000": {
+    "max_code_diff": 1,
+    "identical_frac": 0.9974365234375
+   },
+   "008": {
+    "max_code_diff": 1,
+    "identical_frac": 0.9952392578125
+   }
+  },
+  "tphase": {
+   "ckpt_sha256": "7acf90b81f0a94067661c70723b02ecf7a122da876a7fe0a12b6c4b10bc3c1ea",
+   "has_optimizer_state": false,
+   "000": {
+    "max_code_diff": 1,
+    "identical_frac": 0.99725341796875
+   },
+   "008": {
+    "max_code_diff": 1,
+    "identical_frac": 0.9949951171875
+   }
+  }
+ }
+}
