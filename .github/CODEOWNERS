@@ -1,6 +1,11 @@
 # Review routing only: current private-repo plan does not enforce protection.
 * @NinjaMoons
-# Confirmed collaborator with write access; other module owners await invitations.
+# Confirmed collaborators with write access; playerr456 invitation remains pending.
 /doe_core/asm.py @ggmaster913 @NinjaMoons
 /tests/core/test_asm.py @ggmaster913 @NinjaMoons
 /docs/modules/asm.md @ggmaster913 @NinjaMoons
+/doe_experiments/data.py @MVRto01 @NinjaMoons
+/doe_experiments/metrics.py @MVRto01 @NinjaMoons
+/tests/experiments/test_data.py @MVRto01 @NinjaMoons
+/tests/experiments/test_metrics.py @MVRto01 @NinjaMoons
+/docs/modules/metrics.md @MVRto01 @NinjaMoons
