@@ -57,6 +57,11 @@ def main():
         if c["user"]["login"] not in ("NinjaMoons", "ggmaster913"):   # task cards come from coordinator/science gate only
             continue
         m = re.search(r"TASK_ID\s*[=:]\s*`?([A-Za-z0-9_.\-]+)", b)
+        parked = [k for k, v in s["processed"].items() if str(v).startswith("AWAITING_GO") and k in b]
+        if parked and c["user"]["login"] == "ggmaster913" and re.search(r"SCIENCE_GATE\s*=\s*GO", b):
+            tasks.append({"task_id": parked[0], "comment_id": c["id"], "author": c["user"]["login"], "url": c["html_url"],
+                          "created_at": c["created_at"], "kind": "GO_FOR_PARKED_TASK"})
+            continue
         if not m or not re.search(r"STATUS\s*=\s*READY", b) or not re.search(r"(TO\s*=\s*@?|for\s+@?)(MVRto01|DESKTOP-T1K698V)|MVRto01\s*/\s*DESKTOP-T1K698V", b):
             continue
         tid = m.group(1)
@@ -67,7 +72,11 @@ def main():
         if other_hosts and "DESKTOP-T1K698V" not in b:
             continue
         if tid in s["processed"]:
-            continue
+            st_ = str(s["processed"][tid])
+            # a task parked as AWAITING_GO is re-raised only by a NEW science-gate GO from ggmaster913 naming it
+            if not (st_.startswith("AWAITING_GO") and c["user"]["login"] == "ggmaster913"
+                    and re.search(r"SCIENCE_GATE\s*=\s*GO", b)):
+                continue
         tasks.append({"task_id": tid, "comment_id": c["id"], "author": c["user"]["login"], "url": c["html_url"],
                       "created_at": c["created_at"]})
     gpu = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],

@@ -34,3 +34,11 @@ Windows Task Scheduler task `nuclear-doe-4070ti-worker` (current user, Limited, 
 only on TASK it starts ONE headless `claude -p` (acceptEdits + allowed Bash/Read/Write/Edit/Glob/Grep, max 60 turns,
 110 min timeout, cap 12 Claude calls) with this procedure. Quota/rate-limit text -> cooldown (Retry-After or 60 min).
 Logs: runner.log, runner-state.json, claude-*.json in this folder; ledger state.json; lock tick.lock.
+
+## Parked tasks (AWAITING_GO)
+If precheck returns a task with "kind": "GO_FOR_PARKED_TASK", the code and pre-check are already done: read
+state.json processed[<TASK_ID>] for the exact run command (e.g. `bash C:/ndoe-out/run_r22_s0.sh`), verify the GO
+comment is from ggmaster913, names the TASK_ID, is the newest science-gate decision for it, and that the phase still
+allows a NEW training start (TRAIN_ALLOWED_WITH_GO, before 04:30 MSK). Then post CLAIMED (RUN), run it in the
+background and wait for ALL_DONE, publish DONE with metrics per the card, set processed[<TASK_ID>] to DONE/FAILED and
+delete tick.lock. If the phase is past 04:30, post BLOCKED (too late) instead.
