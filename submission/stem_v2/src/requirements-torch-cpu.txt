@@ -1,0 +1,2 @@
+# Install only from https://download.pytorch.org/whl/cpu (see README / workflow).
+torch==2.9.0

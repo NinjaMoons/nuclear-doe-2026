@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "status": "PRIVATE_GIT_RELEASE_CANDIDATE",
+  "version": "STEM V2 native12k s0",
+  "runtime_git_sha": "6785eca6e5c7f94a914214c1aac5bd5984792824",
+  "stem_git_sha": "1790a37b1d170c599ed6bfae7de668d87d3798dd",
+  "upstream_archive_sha256": "ffc9d91ebc4977018e9d8625744657025f7c0c09bf410b2a532fd46dd6bef0b0",
+  "checkpoint": {
+    "path": "model/stem_native_s0_step_012000.pt",
+    "bytes": 1833531,
+    "sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f"
+  },
+  "model_evaluation": {
+    "split": "internal VAL16",
+    "pearson": 0.61243,
+    "global_ssim": 0.55356,
+    "group_b_pearson": 0.4516
+  },
+  "verification": {
+    "reference_example": "synthetic_5F",
+    "judge_access": "NOT_VERIFIED",
+    "official_submission_receipt": "NOT_VERIFIED"
+  },
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 44,
+      "sha256": "1830451dccd7007c97616968b75327fccfd4da9227b012e386e30156958ed039"
+    },
+    {
+      "path": "example_output/DOE.png",
+      "bytes": 14851,
+      "sha256": "4f23bc33a553c82bf95925d746eb76d027c40f8e0b4094346b7bfd05a8dd26b3"
+    },
+    {
+      "path": "example_output/metrics.json",
+      "bytes": 1556,
+      "sha256": "29e56a4355899cd42685a764aa4623dd2e4f860366205d0d932bf51475e34d4b"
+    },
+    {
+      "path": "example_output/reconstructed_01.png",
+      "bytes": 13772,
+      "sha256": "fc75b31d16e335ad6f45a5977ca5107cd8bc404e9f3e55e329e0b6c1b9fade61"
+    },
+    {
+      "path": "example_output/reconstructed_02.png",
+      "bytes": 13505,
+      "sha256": "40e2457f55703285eb45f5bb7dd198b039aa713eb63778d7cf5ddd299ef987a1"
+    },
+    {
+      "path": "example_output/reconstructed_03.png",
+      "bytes": 13103,
+      "sha256": "d1365ea2ef07118315b9963f1c879394c5a042a71cd7f4b65171be592b1283b8"
+    },
+    {
+      "path": "example_output/reconstructed_04.png",
+      "bytes": 13535,
+      "sha256": "cf32eaacd2a5c6bf07dfd2c58c5c87fbeb53f36fb05e7c2b49c6614949e5eec3"
+    },
+    {
+      "path": "examples/synthetic_5F/z1_horizontal_bar.png",
+      "bytes": 123,
+      "sha256": "9e5fa7da753e7aca466dd19a2e87c9c099aa2d5e653b1d7491da4414d71a25cf"
+    },
+    {
+      "path": "examples/synthetic_5F/z2_vertical_bar.png",
+      "bytes": 186,
+      "sha256": "355f9b9d0c3a50380a9dc8b301d99369ccc184709ace4b465042bcc302393aab"
+    },
+    {
+      "path": "examples/synthetic_5F/z3_diagonal_line.png",
+      "bytes": 324,
+      "sha256": "49ef01f0b3eb6aed27afcca8dae68cf227a7507a7aa8b569f03e98d6ee28c3b7"
+    },
+    {
+      "path": "examples/synthetic_5F/z4_ring.png",
+      "bytes": 361,
+      "sha256": "192be936af402534e45efeb885f452c9660f2b1e446ffe58b51081d0a524b965"
+    },
+    {
+      "path": "model/stem_native_s0_step_012000.pt",
+      "bytes": 1833531,
+      "sha256": "19b05dad34601a8b5ea4c78e7cd6904b0c639a218f8fbcdeabc2afbb5d6f083f"
+    },
+    {
+      "path": "README.md",
+      "bytes": 6655,
+      "sha256": "a1add4f7e39e792581718c9bd09cb9c6d665fe6ca7a4cecacf3f786153774e68"
+    },
+    {
+      "path": "src/back_projection_stem/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/back_projection_stem/infer_neural_stem.py",
+      "bytes": 1925,
+      "sha256": "4d518047a6620799089884ca17f1b47eceb72ae73abc48808a8bc5dc5599e8df"
+    },
+    {
+      "path": "src/back_projection_stem/stem.py",
+      "bytes": 6440,
+      "sha256": "88083fa1bf112ba5a14d233b10e6847b4526ae72752c28476b5c9aa35852851c"
+    },
+    {
+      "path": "src/doe_core/__init__.py",
+      "bytes": 60,
+      "sha256": "db27aa2deda24616c77a9baf36aaf10271a61fed3b5ef9a31ec9ece27cad09f3"
+    },
+    {
+      "path": "src/doe_core/contracts_v1.py",
+      "bytes": 3308,
+      "sha256": "0c706da96fcca7b39ffab0db2fff82944fb2831bf5e8a78e582f82101ff42bfb"
+    },
+    {
+      "path": "src/doe_core/fresnel.py",
+      "bytes": 5877,
+      "sha256": "9914a7fdc0aaaeaf4915b34325b98409083c8aa9193da5c03dbe08519f17ace2"
+    },
+    {
+      "path": "src/doe_core/observables.py",
+      "bytes": 722,
+      "sha256": "927df154e2f0a075c5a66ef4ec20e5e1725d84f456bd8e78b29f3f666639a05b"
+    },
+    {
+      "path": "src/doe_experiments/__init__.py",
+      "bytes": 60,
+      "sha256": "db27aa2deda24616c77a9baf36aaf10271a61fed3b5ef9a31ec9ece27cad09f3"
+    },
+    {
+      "path": "src/doe_experiments/cli.py",
+      "bytes": 5620,
+      "sha256": "7642a2054caf90e78bd0a7ba66d141650775f65d33de5a554abd77f5b96db2e7"
+    },
+    {
+      "path": "src/doe_experiments/data.py",
+      "bytes": 1920,
+      "sha256": "de9df4863eea037c3190ac3a55fbc4728c9ad1d1b1b6df996446073747450ab7"
+    },
+    {
+      "path": "src/doe_experiments/export.py",
+      "bytes": 12113,
+      "sha256": "066bf33ec46b0cf509b2e214d6260b3f6a4061f837dddeca826f91b21f68bf78"
+    },
+    {
+      "path": "src/doe_experiments/metrics.py",
+      "bytes": 2783,
+      "sha256": "a8e71adc08e126ec0354edda1480bafe2cee5194e4d75fb42f3d7fbbb2ce53c3"
+    },
+    {
+      "path": "src/doe_experiments/phase_codec.py",
+      "bytes": 2425,
+      "sha256": "55d16fd80967839ad55b38ae821a2d49c419af14b9d85a8aea0de094e9702a41"
+    },
+    {
+      "path": "src/doe_experiments/png_io.py",
+      "bytes": 2041,
+      "sha256": "6aa0eeba5ed584d3a79094c5f938b40090e6af492dbb75ecc4bcfa9bd88f9fbb"
+    },
+    {
+      "path": "src/doe_models/__init__.py",
+      "bytes": 60,
+      "sha256": "db27aa2deda24616c77a9baf36aaf10271a61fed3b5ef9a31ec9ece27cad09f3"
+    },
+    {
+      "path": "src/doe_models/adam_multiplane.py",
+      "bytes": 8515,
+      "sha256": "9e01680fbd3489bb1faaf76eb8b7d9fba7d1d76bf8a90a82ab89b03169c5047f"
+    },
+    {
+      "path": "src/doe_models/train_multiplane.py",
+      "bytes": 42621,
+      "sha256": "7e2c63c2e1dbf1dbc6982c7b40e2fd861d19c205fa317f08cd6b939f134717e5"
+    },
+    {
+      "path": "src/doe_models/unet_multiplane.py",
+      "bytes": 4583,
+      "sha256": "dbf7108e6a6d6c38a8b4919251bf98b263d1a638c7e58d5568ee1bf80024efd5"
+    },
+    {
+      "path": "src/pyproject.toml",
+      "bytes": 547,
+      "sha256": "ba7bfa1f75d2744c5038086f12000ebb8403cf20de640b08b299247be7d54f15"
+    },
+    {
+      "path": "src/requirements-science.txt",
+      "bytes": 85,
+      "sha256": "6f347ef12b1cbf95f62ec32dc98b87d190e83322b18e32af4c80d901a2278c27"
+    },
+    {
+      "path": "src/requirements-torch-cpu.txt",
+      "bytes": 95,
+      "sha256": "a55d8798a61b26f91535b065d5c328c8da3f9e580b481c28841ba5b95ec4ec55"
+    },
+    {
+      "path": "src/tests/integration/test_fresnel_reference.py",
+      "bytes": 6590,
+      "sha256": "ad4badda17088836293b9427dcbecab4dae067ffce3ddacce1ead3aaf4ffe37f"
+    },
+    {
+      "path": "src/tests/integration/test_neural_stem_release.py",
+      "bytes": 3713,
+      "sha256": "a413eb3158ebf8318adc58f05eabed0417f36ca19609c1d6af123117049e545e"
+    },
+    {
+      "path": "src/tests/integration/test_submission_roundtrip.py",
+      "bytes": 4756,
+      "sha256": "f4e49e2f8e1dee4b5d0f9cd58f9cf819c18b8bb1bb0fc723ff189046020318fc"
+    }
+  ],
+  "input_archive_sha256": "9c1af4362407107484d5e54f840c560feadbfcb924014d860803697fb8972a61",
+  "packaging_overlay": "Correct STEM reproduce_argv in the exported run manifest; physics, model and checkpoint unchanged."
+}
