@@ -9,6 +9,16 @@ STEM V2, native12k, seed 0. Сеть принимает четыре целев�
 - DOE.png — L8 128×128. Коды 0 и 255 соответствуют −π и +π. Реконструкции содержат нормированную амплитуду |U|.
 - Исторические VAL16: Pearson 0,61243, global SSIM 0,55356. Pearson группы B 0,4516. На части B-квартетов видны наложения. Это внутренняя валидация, результаты организатора ещё неизвестны.
 
+## Структура комплекта
+
+- model/ — оригинальные веса STEM V2 native12k seed 0, обученные на внутреннем native TRAIN512.
+- src/back_projection_stem/ — архитектура и нейросетевой entrypoint.
+- src/doe_core/ — физическая модель, src/doe_experiments/ — экспорт и метрики.
+- examples/synthetic_5F/ — четыре синтетических входа; example_output/ — готовые синтетические DOE, реконструкции и метрики.
+- src/tests/integration/ — независимый эталон Френеля, DATA roundtrip и тест комплекта.
+
+VAL16 по группам, округлённо: A — Pearson 0,773, global SSIM 0,742; B — Pearson 0,452, global SSIM 0,365. На B остаётся смешение деталей между плоскостями.
+
 ## Установка и контроль весов
 
 Python 3.12. Создайте виртуальное окружение и используйте его Python для команд. Из корня комплекта:
@@ -54,7 +64,7 @@ python -m back_projection_stem.infer_neural_stem --checkpoint ../model/stem_nati
 Для физического теста и проверки формата экспорта из `src` установите `pytest==8.4.2`, затем выполните:
 
 ~~~text
-python -m pytest -q tests/integration/test_fresnel_reference.py tests/integration/test_submission_roundtrip.py
+python -m pytest -q tests/integration/test_fresnel_reference.py tests/integration/test_submission_roundtrip.py tests/integration/test_neural_stem_release.py
 ~~~
 
-Физический тест сравнивает Fresnel с прямой суммой. Тест формата использует синтетическую четвёрку, проверяет запись и повторное чтение. Проверка нейросетевого пути выполняется отдельной командой выше.
+Физический тест сравнивает Fresnel с прямой суммой. Тест формата использует синтетическую четвёрку, проверяет запись и повторное чтение. Нейросетевой тест проверяет один forward без оптимизатора, точную геометрию и метрики по сохранённым PNG. Команду ручного запуска можно выполнить отдельно.

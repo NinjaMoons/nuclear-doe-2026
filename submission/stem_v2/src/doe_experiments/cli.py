@@ -13,7 +13,7 @@ from doe_experiments.export import export_run, production_components
 from doe_experiments.phase_codec import load_doe_png
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, reproduce_argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="method", required=True)
     for method in ("adam", "reconstruct", "neural"):
@@ -75,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
                              "checkpoint_load_elapsed_s": load_elapsed, "inference_elapsed_s": infer_elapsed,
                              "neural_timing_scope": {"checkpoint_load": "load_checkpoint CPU load and validation",
                                                      "inference": "infer_phase only; excludes target IO and export"}})
-        metadata["reproduce_argv"] = ["python", "-m", "doe_experiments.cli", *(argv or sys.argv[1:])]
+        metadata["reproduce_argv"] = (reproduce_argv if reproduce_argv is not None else
+                                      ["python", "-m", "doe_experiments.cli", *(argv or sys.argv[1:])])
         metadata["phase_dtype"] = str(phase.dtype).replace("torch.", "")
         metadata["reproduction_note"] = "Use the same dtype and a NEW --output-dir; existing runs are not overwritten."
         manifest = export_run(args.targets, phase, args.output_dir, components=components,

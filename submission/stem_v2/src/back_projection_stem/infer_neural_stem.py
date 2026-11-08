@@ -1,4 +1,4 @@
-"""RESEARCH ONLY (#5): one-forward inference for the 12-ch back-projection stem through the UNCHANGED production CLI.
+"""One-forward inference for the 12-channel STEM V2 through the production neural CLI.
 
     python -m back_projection_stem.infer_neural_stem --targets T1 T2 T3 T4 --output-dir NEW --checkpoint STEM.pt [--synthetic-test]
 
@@ -37,7 +37,8 @@ def main(argv):
     from doe_experiments import cli
     tm.load_checkpoint = research_load_checkpoint
     try:
-        return cli.main(["neural", *argv])
+        return cli.main(["neural", *argv],
+                        reproduce_argv=["python", "-m", "back_projection_stem.infer_neural_stem", *argv])
     finally:
         tm.load_checkpoint = _stock_load
 

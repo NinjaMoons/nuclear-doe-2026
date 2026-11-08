@@ -84,8 +84,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5522,
-      "sha256": "653e69ad0d8fbd5f8f1e8a4d1e499c20b4022e02e8e1a2efcb2e593c758a3b69"
+      "bytes": 6655,
+      "sha256": "a1add4f7e39e792581718c9bd09cb9c6d665fe6ca7a4cecacf3f786153774e68"
     },
     {
       "path": "src/back_projection_stem/__init__.py",
@@ -94,8 +94,8 @@
     },
     {
       "path": "src/back_projection_stem/infer_neural_stem.py",
-      "bytes": 1850,
-      "sha256": "06b205261110a90035fb1e3e5b8106ec6cafd948de032a3e0bb5cb93cd50e1be"
+      "bytes": 1925,
+      "sha256": "4d518047a6620799089884ca17f1b47eceb72ae73abc48808a8bc5dc5599e8df"
     },
     {
       "path": "src/back_projection_stem/stem.py",
@@ -129,8 +129,8 @@
     },
     {
       "path": "src/doe_experiments/cli.py",
-      "bytes": 5486,
-      "sha256": "2aa8161c4c4fa8a93bd1f39989b780a98a0891f7debd20e511fcb8948764ad62"
+      "bytes": 5620,
+      "sha256": "7642a2054caf90e78bd0a7ba66d141650775f65d33de5a554abd77f5b96db2e7"
     },
     {
       "path": "src/doe_experiments/data.py",
@@ -198,10 +198,16 @@
       "sha256": "ad4badda17088836293b9427dcbecab4dae067ffce3ddacce1ead3aaf4ffe37f"
     },
     {
+      "path": "src/tests/integration/test_neural_stem_release.py",
+      "bytes": 3713,
+      "sha256": "a413eb3158ebf8318adc58f05eabed0417f36ca19609c1d6af123117049e545e"
+    },
+    {
       "path": "src/tests/integration/test_submission_roundtrip.py",
       "bytes": 4756,
       "sha256": "f4e49e2f8e1dee4b5d0f9cd58f9cf819c18b8bb1bb0fc723ff189046020318fc"
     }
   ],
-  "input_archive_sha256": "9c1af4362407107484d5e54f840c560feadbfcb924014d860803697fb8972a61"
+  "input_archive_sha256": "9c1af4362407107484d5e54f840c560feadbfcb924014d860803697fb8972a61",
+  "packaging_overlay": "Correct STEM reproduce_argv in the exported run manifest; physics, model and checkpoint unchanged."
 }

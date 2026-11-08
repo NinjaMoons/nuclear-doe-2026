@@ -40,3 +40,17 @@ jobs:
         run: python -m compileall -q doe_core doe_models doe_experiments ui tests
       - name: Run all tests
         run: python -m pytest -q --strict-markers
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: ${{ hashFiles('submission/stem_v2/SHA256SUMS.txt') != '' }}
+        with:
+          python-version: '3.12'
+      - name: Verify standalone STEM V2 release
+        if: ${{ hashFiles('submission/stem_v2/SHA256SUMS.txt') != '' }}
+        working-directory: submission/stem_v2
+        run: |
+          sha256sum -c SHA256SUMS.txt
+          python -m pip install -r src/requirements-torch-cpu.txt --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r src/requirements-science.txt pytest==8.4.2
+          cd src
+          python -m pytest -q tests/integration/test_fresnel_reference.py tests/integration/test_submission_roundtrip.py tests/integration/test_neural_stem_release.py
