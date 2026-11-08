@@ -1,4 +1,4 @@
-# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 02:38 MSK
+# NEXT_STEP — @MVRto01 desktop Claude (#43 / #51) — updated 2026-11-08 03:05 MSK
 
 Read this first after any quota reset / restart. Then `git fetch origin` and re-read #43, #49, #51, #8 and
 `git show origin/main:docs/hackathon/NIGHT_AGENT_PROTOCOL.md`. Never restart a job whose outputs already exist.
@@ -18,10 +18,12 @@ Read this first after any quota reset / restart. Then `git fetch origin` and re-
 ## Done via #51
 - R19-TPHASE-S0 (Grigoriy card #51/6714199745): DONE 02:10, control .61482/.55916, tphase .61932/.56291, dP +.0045
   dB +.0087 INCONCLUSIVE; asset 722232793; branch research/sanya-w51-r19@0f8a21f; out C:
-doe-out19_s0_*.
+doe-out
+19_s0_*.
 - R19-TPHASE-S1 (card 6714389928/6714461127): DONE 02:38, dP +.0057 dB +.0088 REPLICATED, 2-seed mean +.0051/+.0087
   below .010 gate -> not promoted; asset 722289587; out C:
-doe-out19_s1_*.
+doe-out
+19_s1_*.
 
 ## Queue = GitHub #51 (worker, `C:
 uclear-doe-operator\ops\worker51\`, copy in `ops_worker51/`)
@@ -35,9 +37,11 @@ uclear-doe-operator\ops\worker51\`, copy in `ops_worker51/`)
 05:15-06:00 acceptance/packaging · 06:00 freeze · 07:30-08:00 official submission (coordinator) · 09:30 stop coding.
 
 ## Recovery
-- ACTIVE now: in-session CLI cron 5752bdd8 every 12 min (:04/:16/:28/:40/:52) running precheck.py; live test
-  SANYA_WORKER_TEST=PASS 01:49 (#51/6714083450), recurring tick verified 01:54. Dies with this CLI session/quota.
-- Desktop local scheduled task: NOT created (UI-only). Owner steps: `ops_worker51/DESKTOP_TASK.md`; only claim it
-  works after Run now + History + `SANYA_DESKTOP_TASK_TEST=PASS` comment. Then delete the CLI cron (one poller).
-- Windows Task Scheduler registration was denied by the permission classifier (not retried).
-- Claude quota: UNKNOWN from CLI.
+- INDEPENDENT worker: Windows Task Scheduler `nuclear-doe-4070ti-worker` every 15 min (until 09:40 MSK) ->
+  C:
+uclear-doe-operator\ops\worker51unner.ps1 (mutex, cooldown, precheck without LLM, headless `claude -p` only
+  for a new READY task to DESKTOP-T1K698V). Self-test 03:00 from a new headless process: #51/6714786063 (PASS).
+  Works after this terminal closes (needs the user logged in + PC awake: AC sleep/hibernate = never).
+- Logs: ops\worker51unner.log, runner-state.json, claude-*.json; ledger state.json; lock tick.lock.
+- Old in-session CLI cron 5752bdd8: removed after the first natural scheduled tick is verified.
+- Claude quota: UNKNOWN from CLI; on a quota error the runner sets a cooldown (no retry loop).

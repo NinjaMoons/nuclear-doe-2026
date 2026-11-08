@@ -27,3 +27,10 @@ uclear-doe-operator\ops\worker51	ick.lock` when the task is finished, blocked or
 5. Publish: comment `TASK_ID=<id> STATUS=DONE|NO_GO|FAILED` with metrics (official DOE u8 path, A/B/worst, B own),
    checkpoint/source SHA, private asset id if any, wall time, NEXT. Set processed[<id>] accordingly. Update
    `C:\nuclear-doe-operator\b-sampler\NEXT_STEP.md` and push.
+
+## Scheduler (since 2026-11-08 03:01 MSK)
+Windows Task Scheduler task `nuclear-doe-4070ti-worker` (current user, Limited, interactive logon, every 15 min until
+09:40 MSK, IgnoreNew) -> `runner.ps1`: named mutex (single instance), cooldown, deterministic precheck.py (no LLM);
+only on TASK it starts ONE headless `claude -p` (acceptEdits + allowed Bash/Read/Write/Edit/Glob/Grep, max 60 turns,
+110 min timeout, cap 12 Claude calls) with this procedure. Quota/rate-limit text -> cooldown (Retry-After or 60 min).
+Logs: runner.log, runner-state.json, claude-*.json in this folder; ledger state.json; lock tick.lock.
