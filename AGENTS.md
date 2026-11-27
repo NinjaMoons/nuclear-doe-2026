@@ -9,3 +9,12 @@
 Не запускать платные API/вычисления, опасные команды, массовое обучение или загрузку больших данных без согласования Павла. Не добавлять секреты, датасеты, checkpoints и сгенерированные результаты в git. Не затрагивать Foundation AI и nuclearhack-transcriber.
 
 Приоритет: ASM -> Adam -> тесты/метрики -> U-Net -> benchmark -> демо -> сдача. Не расширять объём Issue самостоятельно. При неоднозначности сначала проверить контракт/Issue; фиксировать блокировку и один конкретный вопрос, продолжая независимую работу.
+
+## Model routing for the owner's Codex work
+
+- GPT-6.2 Astra — optical physics, diffraction theory, experiment design, numerical methodology, scientific validation and high-impact review.
+- GPT-6.2 Sol — scoped scientific module implementation, data pipelines, training/evaluation code, tests and integration.
+- GPT-6 Luna — read-only dataset manifests, metrics/log extraction, inventories and repetitive checks.
+- GPT-6.1 Terra — visual inspection of plots, figures and demo screenshots.
+
+Use only models actually available in the current Codex client. Keep one writer per Issue-owned area; parallel helpers should be read-only or own disjoint files. This routing does not change the one-Issue/one-branch/one-PR process, module contracts, or owner approval gates above. No additional paid API, training, compute, dataset upload or checkpoint publication is authorized by model routing.
